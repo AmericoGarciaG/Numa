@@ -1,0 +1,10 @@
+# Core Framework
+fastapi
+uvicorn[standard]
+
+# Database & ORM
+sqlalchemy
+pydantic
+
+# Utilities
+python-dotenv
