@@ -115,7 +115,7 @@ def login_for_access_token(
 
 
 @app.post("/transactions/voice", response_model=TransactionSchema, status_code=201)
-def create_transaction_from_voice(
+async def create_transaction_from_voice(
     audio_file: UploadFile = File(...),
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -138,7 +138,7 @@ def create_transaction_from_voice(
     """
     try:
         # Call service function to create provisional transaction
-        transaction = create_provisional_transaction_from_audio(
+        transaction = await create_provisional_transaction_from_audio(
             db=db, audio_file=audio_file, user_id=current_user.id
         )
         return transaction
@@ -206,7 +206,7 @@ def verify_transaction_manual(
 
 # Alternative endpoints for user convenience (following USER_GUIDE.md)
 @app.post("/upload-audio")
-def upload_audio(
+async def upload_audio(
     audio_file: UploadFile = File(...),
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -214,7 +214,7 @@ def upload_audio(
     """Alternative endpoint for creating transaction from voice (for USER_GUIDE.md compatibility).
     Now protected with JWT authentication.
     """
-    return create_transaction_from_voice(audio_file=audio_file, current_user=current_user, db=db)
+    return await create_transaction_from_voice(audio_file=audio_file, current_user=current_user, db=db)
 
 
 @app.post("/upload-document")

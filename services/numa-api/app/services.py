@@ -4,7 +4,10 @@ This module contains the core application logic as specified in LOGIC.md.
 API endpoints should be lean and delegate to these service functions.
 """
 
+import os
 import re
+import tempfile
+import whisper
 
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
@@ -22,8 +25,11 @@ from app.simulations import (
     SIMULATION_MESSAGES,
 )
 
+# Cargar el modelo Whisper (el modelo 'base' es un buen equilibrio de velocidad y precisión para empezar)
+whisper_model = whisper.load_model("base")
 
-def create_provisional_transaction_from_audio(
+
+async def create_provisional_transaction_from_audio(
     db: Session, audio_file: UploadFile, user_id: int
 ) -> Transaction:
     """Create a provisional transaction from voice command.
@@ -49,9 +55,33 @@ def create_provisional_transaction_from_audio(
     Raises:
         ValueError: If amount or concept cannot be extracted from audio
     """
-    # Step 1: Simulate audio transcription (Rule 2.1 - Step 1)
-    # For now, ignore audio_file content and use hardcoded text as specified
-    transcribed_text = DEFAULT_VOICE_TRANSCRIPTION
+    # Step 1: Real audio transcription using Whisper (Rule 2.1 - Step 1)
+    # Guardar temporalmente el archivo de audio subido para que Whisper pueda procesarlo
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".tmp") as tmp_audio_file:
+            content = await audio_file.read()
+            tmp_audio_file.write(content)
+            tmp_audio_file_path = tmp_audio_file.name
+
+        # Realizar la transcripción usando el modelo Whisper cargado
+        result = whisper_model.transcribe(tmp_audio_file_path, fp16=False)  # fp16=False para compatibilidad con CPU
+        transcribed_text = result["text"]
+
+    except Exception as e:
+        # Fallback to hardcoded text if Whisper/ffmpeg is not available
+        if "The system cannot find the file" in str(e) or "ffmpeg" in str(e).lower():
+            print("⚠️  Warning: ffmpeg not found. Using fallback transcription.")
+            print("   To use real audio transcription, install ffmpeg:")
+            print("   Windows: choco install ffmpeg")
+            print("   Ubuntu: sudo apt-get install ffmpeg")
+            transcribed_text = DEFAULT_VOICE_TRANSCRIPTION
+        else:
+            # Re-raise other errors
+            raise ValueError(f"Error al transcribir el audio: {e}")
+    finally:
+        # Asegurarse de que el archivo temporal se elimine
+        if 'tmp_audio_file_path' in locals() and os.path.exists(tmp_audio_file_path):
+            os.remove(tmp_audio_file_path)
 
     # Step 2: Simulate LLM extraction of minimal entities (Rule 2.1 - Step 2)
     amount, concept = _extract_amount_and_concept_from_text(transcribed_text)

@@ -15,8 +15,12 @@ python-dotenv
 python-jose[cryptography]
 passlib[bcrypt]
 
+# AI & Machine Learning
+openai-whisper
+
 # Testing
 pytest
+pytest-asyncio
 httpx
 
 # Code formatting

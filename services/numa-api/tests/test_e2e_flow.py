@@ -1,22 +1,29 @@
-"""End-to-end test for the complete voice → verification flow (Rules 2.1 → 2.2)."""
+"""End-to-end test for the complete voice → verification flow with JWT authentication."""
 
 import io
 
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.auth_helpers import create_authenticated_user
 
 client = TestClient(app)
 
 
-def test_complete_voice_to_verification_flow():
+def test_complete_voice_to_verification_flow(test_db_session):
     """Test complete flow: voice command creates provisional, then gets verified with document.
 
     This test validates the integration of:
     - Rule 2.1: Creación Provisional por Voz
     - Rule 2.2: Verificación por Comprobante
+    - JWT Authentication for all endpoints
     """
-    print("🚀 Starting end-to-end test: Voice → Verification flow")
+    print("🚀 Starting end-to-end test: Voice → Verification flow (with auth)")
+    
+    # SETUP: Create authenticated user
+    user, headers = create_authenticated_user(
+        client, test_db_session, "e2e@test.com", "E2E User", "e2epass"
+    )
 
     # STEP 1: Create provisional transaction via voice (Rule 2.1)
     print("📢 Step 1: Creating provisional transaction from voice command...")
@@ -27,7 +34,7 @@ def test_complete_voice_to_verification_flow():
     voice_response = client.post(
         "/transactions/voice",
         files={"audio_file": ("dinner_expense.wav", audio_file, "audio/wav")},
-        data={"user_id": 1},
+        headers=headers,
     )
 
     assert voice_response.status_code == 201
@@ -60,6 +67,7 @@ def test_complete_voice_to_verification_flow():
     verify_response = client.post(
         f"/transactions/{transaction_id}/verify",
         files={"document": ("receipt_la_trattoria.jpg", receipt_file, "image/jpeg")},
+        headers=headers,
     )
 
     assert verify_response.status_code == 200
@@ -82,7 +90,7 @@ def test_complete_voice_to_verification_flow():
     assert verified_transaction["merchant"] == "La Trattoria"  # Merchant extracted
     assert verified_transaction["transaction_date"] is not None  # Date added
     assert verified_transaction["transaction_time"] is not None  # Time added
-    assert verified_transaction["user_id"] == 1  # User unchanged
+    assert verified_transaction["user_id"] == user.id  # User from authentication
 
     # Validate Rule 2.4 compliance (Auto-categorization)
     assert verified_transaction["category"] == "Restaurantes"  # Auto-categorized
@@ -92,7 +100,7 @@ def test_complete_voice_to_verification_flow():
 
     # The transaction should have evolved from provisional to verified
     # with enhanced data while preserving original voice-extracted concept
-    original_voice_data = {"concept": "la cena", "user_id": 1}
+    original_voice_data = {"concept": "la cena", "user_id": user.id}
 
     document_verified_data = {
         "amount": 122.50,
@@ -120,7 +128,3 @@ def test_complete_voice_to_verification_flow():
     print(f"      • Data integrity maintained ✅")
 
     return verified_transaction
-
-
-if __name__ == "__main__":
-    test_complete_voice_to_verification_flow()

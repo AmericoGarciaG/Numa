@@ -1,27 +1,30 @@
-"""Integration tests for manual verification endpoint (Rule 2.3).
-
-Tests the complete API flow for manually verifying provisional transactions
-without requiring source documents.
-"""
+"""Integration tests for manual verification endpoint with JWT authentication."""
 
 import io
 
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.auth_helpers import create_authenticated_user
 
 client = TestClient(app)
 
 
-def test_manual_verification_endpoint_success():
-    """Test successful manual verification of a provisional transaction.
+def test_manual_verification_endpoint_success(test_db_session):
+    """Test successful manual verification of a provisional transaction with authentication.
     
     This test validates the integration of:
     - Rule 2.1: Voice command creates provisional transaction
     - Rule 2.3: Manual verification without document
     - Rule 2.4: Auto-categorization is applied
+    - JWT Authentication for all endpoints
     """
-    print("🚀 Starting integration test: Manual Verification Endpoint")
+    print("🚀 Starting integration test: Manual Verification Endpoint (with auth)")
+    
+    # SETUP: Create authenticated user
+    user, headers = create_authenticated_user(
+        client, test_db_session, "manual@test.com", "Manual User", "manualpass"
+    )
     
     # STEP 1: Create provisional transaction via voice (Rule 2.1)
     print("📢 Step 1: Creating provisional transaction from voice command...")
@@ -32,7 +35,7 @@ def test_manual_verification_endpoint_success():
     voice_response = client.post(
         "/transactions/voice",
         files={"audio_file": ("dinner_expense.wav", audio_file, "audio/wav")},
-        data={"user_id": 1},
+        headers=headers,
     )
     
     assert voice_response.status_code == 201
@@ -57,7 +60,7 @@ def test_manual_verification_endpoint_success():
     # STEP 2: Manually verify transaction (Rule 2.3)
     print("✋ Step 2: Manually verifying transaction without document...")
     
-    verify_response = client.post(f"/transactions/{transaction_id}/verify_manual")
+    verify_response = client.post(f"/transactions/{transaction_id}/verify_manual", headers=headers)
     
     assert verify_response.status_code == 200
     verified_transaction = verify_response.json()
@@ -78,7 +81,7 @@ def test_manual_verification_endpoint_success():
     assert verified_transaction["merchant"] is None  # No merchant (no document)
     assert verified_transaction["transaction_date"] is None  # No date (no document)
     assert verified_transaction["transaction_time"] is None  # No time (no document)
-    assert verified_transaction["user_id"] == 1  # User unchanged
+    assert verified_transaction["user_id"] == user.id  # User from authentication
     
     # Validate Rule 2.4 compliance (Auto-categorization based on concept)
     assert verified_transaction["category"] == "Restaurantes"  # "cena" → "Restaurantes"
@@ -90,7 +93,7 @@ def test_manual_verification_endpoint_success():
     original_voice_data = {
         "concept": "la cena",
         "amount": 120.0,
-        "user_id": 1
+        "user_id": user.id
     }
     
     for key, value in original_voice_data.items():
@@ -122,11 +125,26 @@ def test_manual_verification_endpoint_success():
     return verified_transaction
 
 
-def test_manual_verification_endpoint_not_found():
+def test_manual_verification_requires_authentication():
+    """Test manual verification endpoint requires authentication."""
+    print("🔐 Testing manual verification authentication requirement...")
+    
+    # Test without authentication
+    response = client.post("/transactions/999/verify_manual")
+    assert response.status_code == 401
+    print("   ✅ Manual verification correctly requires authentication")
+
+
+def test_manual_verification_endpoint_not_found(test_db_session):
     """Test manual verification fails with 404 for non-existent transaction."""
     print("🔍 Testing manual verification with non-existent transaction...")
     
-    response = client.post("/transactions/999/verify_manual")
+    # Create authenticated user
+    user, headers = create_authenticated_user(
+        client, test_db_session, "notfound@test.com", "Not Found User", "notfoundpass"
+    )
+    
+    response = client.post("/transactions/999/verify_manual", headers=headers)
     
     assert response.status_code == 404
     error_data = response.json()
@@ -135,9 +153,14 @@ def test_manual_verification_endpoint_not_found():
     print("   ✅ Correctly returned 404 for non-existent transaction")
 
 
-def test_manual_verification_endpoint_already_verified():
+def test_manual_verification_endpoint_already_verified(test_db_session):
     """Test manual verification fails with 400 for already verified transaction."""
     print("🔍 Testing manual verification with already verified transaction...")
+    
+    # Create authenticated user
+    user, headers = create_authenticated_user(
+        client, test_db_session, "already@test.com", "Already User", "alreadypass"
+    )
     
     # STEP 1: Create provisional transaction
     audio_content = b"dummy audio content representing: gaste 50 pesos en cafe"
@@ -146,7 +169,7 @@ def test_manual_verification_endpoint_already_verified():
     voice_response = client.post(
         "/transactions/voice",
         files={"audio_file": ("coffee_expense.wav", audio_file, "audio/wav")},
-        data={"user_id": 1},
+        headers=headers,
     )
     
     assert voice_response.status_code == 201
@@ -159,13 +182,14 @@ def test_manual_verification_endpoint_already_verified():
     verify_response = client.post(
         f"/transactions/{transaction_id}/verify",
         files={"document": ("receipt.jpg", receipt_file, "image/jpeg")},
+        headers=headers,
     )
     
     assert verify_response.status_code == 200
     assert verify_response.json()["status"] == "verified"
     
     # STEP 3: Try to manually verify already verified transaction
-    manual_verify_response = client.post(f"/transactions/{transaction_id}/verify_manual")
+    manual_verify_response = client.post(f"/transactions/{transaction_id}/verify_manual", headers=headers)
     
     assert manual_verify_response.status_code == 400
     error_data = manual_verify_response.json()
@@ -174,9 +198,14 @@ def test_manual_verification_endpoint_already_verified():
     print("   ✅ Correctly returned 400 for already verified transaction")
 
 
-def test_manual_verification_endpoint_already_manually_verified():
+def test_manual_verification_endpoint_already_manually_verified(test_db_session):
     """Test manual verification fails with 400 for already manually verified transaction."""
     print("🔍 Testing manual verification with already manually verified transaction...")
+    
+    # Create authenticated user
+    user, headers = create_authenticated_user(
+        client, test_db_session, "double@test.com", "Double User", "doublepass"
+    )
     
     # STEP 1: Create provisional transaction
     audio_content = b"dummy audio content representing: gaste 30 pesos en transporte"
@@ -185,31 +214,23 @@ def test_manual_verification_endpoint_already_manually_verified():
     voice_response = client.post(
         "/transactions/voice",
         files={"audio_file": ("transport_expense.wav", audio_file, "audio/wav")},
-        data={"user_id": 1},
+        headers=headers,
     )
     
     assert voice_response.status_code == 201
     transaction_id = voice_response.json()["id"]
     
     # STEP 2: Manually verify transaction first time
-    first_verify_response = client.post(f"/transactions/{transaction_id}/verify_manual")
+    first_verify_response = client.post(f"/transactions/{transaction_id}/verify_manual", headers=headers)
     
     assert first_verify_response.status_code == 200
     assert first_verify_response.json()["status"] == "verified_manual"
     
     # STEP 3: Try to manually verify again
-    second_verify_response = client.post(f"/transactions/{transaction_id}/verify_manual")
+    second_verify_response = client.post(f"/transactions/{transaction_id}/verify_manual", headers=headers)
     
     assert second_verify_response.status_code == 400
     error_data = second_verify_response.json()
     assert "not in provisional state" in error_data["detail"]
     
     print("   ✅ Correctly returned 400 for already manually verified transaction")
-
-
-if __name__ == "__main__":
-    test_manual_verification_endpoint_success()
-    test_manual_verification_endpoint_not_found()
-    test_manual_verification_endpoint_already_verified()
-    test_manual_verification_endpoint_already_manually_verified()
-    print("🎉 All manual verification endpoint tests passed!")

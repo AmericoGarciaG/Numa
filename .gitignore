@@ -50,6 +50,31 @@ numa.db
 logs/
 *.log
 
+# Development Utilities
+.dev_utils/
+
+# Docker volumes and data
+.docker/
+docker-data/
+**/node_modules/
+
+# Service-specific databases
+services/numa-api/*.db
+services/numa-api/*.sqlite3
+services/**/numa.db
+
+# Service-specific logs
+services/**/logs/
+services/**/*.log
+
+# Ollama model cache (if running locally)
+ollama_models/
+.ollama/
+
+# MCP Server specifics
+services/mcp-server/llm-mcp-server-py/
+services/mcp-server/**/.git
+
 # Test artifacts
 .pytest_cache/
 .coverage
