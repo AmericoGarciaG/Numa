@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr
 
-from models import TransactionStatus
+from app.models import TransactionStatus
 
 
 # User schemas

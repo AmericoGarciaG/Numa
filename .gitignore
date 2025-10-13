@@ -75,3 +75,13 @@ Thumbs.db
 
 # FastAPI/Uvicorn
 .uvicorn-reload
+
+# Context generation (optional, can be regenerated)
+CONTEXT.md
+
+# PowerShell execution policy files
+*.ps1xml
+
+# Backup files
+*.bak
+*.backup

@@ -7,13 +7,14 @@ endpoint structure as specified in AGENTS.md.
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from database import engine, get_db
-from models import Base
-from schemas import ChatQuery, ChatResponse
-from schemas import Transaction as TransactionSchema
-from services import (create_provisional_transaction_from_audio,
-                      get_chat_response, get_user_by_id,
-                      verify_transaction_with_document)
+from app.database import engine, get_db
+from app.models import Base
+from app.schemas import ChatQuery, ChatResponse
+from app.schemas import Transaction as TransactionSchema
+from app.services import (create_provisional_transaction_from_audio,
+                          get_chat_response, get_user_by_id,
+                          verify_transaction_manually,
+                          verify_transaction_with_document)
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -95,6 +96,29 @@ def verify_transaction(
     transaction = verify_transaction_with_document(
         db=db, transaction_id=transaction_id, document=document
     )
+    return transaction
+
+
+@app.post("/transactions/{transaction_id}/verify_manual", response_model=TransactionSchema)
+def verify_transaction_manual(
+    transaction_id: int, db: Session = Depends(get_db)
+):
+    """Manually verify a provisional transaction without a source document.
+
+    Implements LOGIC.md Rule 2.3 (Creación Verificada Manualmente).
+
+    Args:
+        transaction_id: ID of the transaction to verify manually
+        db: Database session dependency
+
+    Returns:
+        TransactionSchema: The updated verified transaction
+
+    Raises:
+        HTTPException: If transaction not found, not provisional, or verification fails
+    """
+    # Call service function to verify transaction manually
+    transaction = verify_transaction_manually(db=db, transaction_id=transaction_id)
     return transaction
 
 

@@ -9,8 +9,17 @@ import re
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
-from models import Transaction, TransactionStatus, User
-from schemas import Transaction as TransactionSchema
+from app.models import Transaction, TransactionStatus, User
+from app.schemas import Transaction as TransactionSchema
+from app.simulations import (
+    DEFAULT_VOICE_TRANSCRIPTION,
+    DEFAULT_VERIFICATION_DATA,
+    CATEGORY_MAP,
+    CONCEPT_KEYWORDS,
+    DEFAULT_CATEGORY,
+    CHAT_CATEGORY_KEYWORDS,
+    SIMULATION_MESSAGES,
+)
 
 
 def create_provisional_transaction_from_audio(
@@ -41,7 +50,7 @@ def create_provisional_transaction_from_audio(
     """
     # Step 1: Simulate audio transcription (Rule 2.1 - Step 1)
     # For now, ignore audio_file content and use hardcoded text as specified
-    transcribed_text = "gasté 120 pesos en la cena"
+    transcribed_text = DEFAULT_VOICE_TRANSCRIPTION
 
     # Step 2: Simulate LLM extraction of minimal entities (Rule 2.1 - Step 2)
     amount, concept = _extract_amount_and_concept_from_text(transcribed_text)
@@ -154,11 +163,7 @@ def verify_transaction_with_document(
 
     # Step 2: Simulate LLM multimodal analysis of SourceDocument (Rule 2.2 - Step 1)
     # For now, ignore document content and use hardcoded verified data as specified
-    verified_data = {
-        "amount": 122.50,
-        "vendor": "La Trattoria",
-        "transaction_date": datetime.now(),
-    }
+    verified_data = DEFAULT_VERIFICATION_DATA.copy()
 
     # Step 3: Update Transaction with precise information (Rule 2.2 - Step 3)
     transaction.amount = verified_data["amount"]  # Monto Exacto
@@ -179,6 +184,56 @@ def verify_transaction_with_document(
     # For now, we focus on the core transaction verification logic
 
     # Save changes to database
+    db.commit()
+    db.refresh(transaction)
+
+    return transaction
+
+
+def verify_transaction_manually(db: Session, transaction_id: int) -> Transaction:
+    """Verify a provisional transaction manually without a source document.
+
+    Implements LOGIC.md Rule 2.3 (Creación Verificada Manualmente):
+    - Input: Un transaction_id de una Transaction en estado provisional
+    - Action:
+      1. El User confirma manualmente que la Transaction es correcta sin necesidad de comprobante
+      2. El sistema cambia el estado de provisional a verified_manual
+      3. Se aplica auto-categorización basada en el Concepto original
+    - Output: Una Transaction actualizada en estado verified_manual con categoría asignada
+
+    Args:
+        db: Database session
+        transaction_id: ID of the transaction to verify manually
+
+    Returns:
+        Transaction: The updated verified transaction
+
+    Raises:
+        HTTPException: If transaction not found or not in provisional state
+    """
+    from fastapi import HTTPException
+
+    # Step 1: Find the Transaction by transaction_id (Rule 2.3 prerequisite)
+    transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    # Step 2: Verify transaction is in provisional state (logical requirement)
+    if transaction.status != TransactionStatus.PROVISIONAL:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Transaction is not in provisional state. Current state: {transaction.status.value}",
+        )
+
+    # Step 3: Change status from provisional to verified_manual (Rule 2.3 - Step 2)
+    transaction.status = TransactionStatus.VERIFIED_MANUAL
+
+    # Step 4: Auto-categorize transaction based on concept (Rule 2.3 - Step 3)
+    # This applies Rule 2.4 integration, using the original concept for categorization
+    transaction = _auto_categorize_transaction(transaction)
+
+    # Step 5: Save changes to database
     db.commit()
     db.refresh(transaction)
 
@@ -206,18 +261,7 @@ def _auto_categorize_transaction(transaction: Transaction) -> Transaction:
     """
     # Step 1: Simulate LLM analysis of Comercio and Concepto (Rule 2.4 - Step 1)
     # For now, use a simple dictionary mapping of known merchants to categories
-    category_map = {
-        "La Trattoria": "Restaurantes",
-        "Starbucks": "Café",
-        "McDonald's": "Comida Rápida",
-        "Walmart": "Supermercado",
-        "Shell": "Combustible",
-        "Uber": "Transporte",
-        "Netflix": "Entretenimiento",
-        "Farmatodo": "Farmacia",
-        "Zara": "Ropa",
-        "Cinepolis": "Entretenimiento",
-    }
+    category_map = CATEGORY_MAP
 
     # Step 2: Assign category based on merchant (Rule 2.4 - Step 2)
     if transaction.merchant and transaction.merchant in category_map:
@@ -225,17 +269,7 @@ def _auto_categorize_transaction(transaction: Transaction) -> Transaction:
     else:
         # For unknown merchants, use a fallback category or analyze concept
         # This simulates LLM general knowledge categorization
-        concept_keywords = {
-            "cena": "Restaurantes",
-            "almuerzo": "Restaurantes",
-            "desayuno": "Restaurantes",
-            "café": "Café",
-            "gasolina": "Combustible",
-            "medicinas": "Farmacia",
-            "ropa": "Ropa",
-            "supermercado": "Supermercado",
-            "transporte": "Transporte",
-        }
+        concept_keywords = CONCEPT_KEYWORDS
 
         # Analyze concept for category hints
         if transaction.concept:
@@ -246,9 +280,9 @@ def _auto_categorize_transaction(transaction: Transaction) -> Transaction:
                     break
             else:
                 # Default category for unknown cases
-                transaction.category = "Otros"
+                transaction.category = DEFAULT_CATEGORY
         else:
-            transaction.category = "Otros"
+            transaction.category = DEFAULT_CATEGORY
 
     # Step 3: For MVP, we automatically assign the category
     # In a real implementation, new merchants would trigger user confirmation
@@ -318,23 +352,7 @@ def get_chat_response(db: Session, query: str, user_id: int = 1) -> dict:
         start_date = end_date - timedelta(days=days_back)
 
     # Step 2: Simulate NLP interpretation for category (Rule 3.2 - Step 1)
-    category_keywords = {
-        "restaurantes": "Restaurantes",
-        "restaurant": "Restaurantes",
-        "cena": "Restaurantes",
-        "almuerzo": "Restaurantes",
-        "café": "Café",
-        "cafe": "Café",
-        "starbucks": "Café",
-        "supermercado": "Supermercado",
-        "walmart": "Supermercado",
-        "comida": "Supermercado",
-        "transporte": "Transporte",
-        "uber": "Transporte",
-        "combustible": "Combustible",
-        "gasolina": "Combustible",
-        "entretenimiento": "Entretenimiento",
-    }
+    category_keywords = CHAT_CATEGORY_KEYWORDS
 
     detected_category = None
     for keyword, category in category_keywords.items():

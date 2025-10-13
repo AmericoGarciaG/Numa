@@ -14,7 +14,7 @@
 #### **## Setup commands**
 
 -   **Install deps:** `py -m pip install -r requirements.txt` (ALWAYS in .venv virtual environment)
--   **Start dev server:** `py -m uvicorn main:app --reload` (ALWAYS in separate terminal)
+-   **Start dev server:** `py -m uvicorn app.main:app --reload` (ALWAYS in separate terminal)
 -   **Run tests:** `py -m pytest`
 
 ---

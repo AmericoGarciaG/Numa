@@ -11,10 +11,11 @@ from fastapi import UploadFile
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from database import Base
-from models import Transaction, TransactionStatus, User
-from services import (create_provisional_transaction_from_audio,
-                      get_chat_response, verify_transaction_with_document)
+from app.database import Base
+from app.models import Transaction, TransactionStatus, User
+from app.services import (create_provisional_transaction_from_audio,
+                          get_chat_response, verify_transaction_manually,
+                          verify_transaction_with_document)
 
 
 @pytest.fixture(scope="function")
@@ -228,6 +229,122 @@ class TestVerifyTransactionWithDocument:
                 db=test_db_session,
                 transaction_id=verified_transaction.id,
                 document=mock_document,
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "not in provisional state" in str(exc_info.value.detail)
+
+
+class TestVerifyTransactionManually:
+    """Test suite for verify_transaction_manually function."""
+
+    def test_verifies_provisional_transaction_successfully(
+        self, test_db_session, test_user
+    ):
+        """Test that the function verifies a provisional transaction manually.
+
+        Verifies Rule 2.3 implementation:
+        - Status changes from PROVISIONAL to VERIFIED_MANUAL
+        - Auto-categorization is applied based on concept
+        - Changes are persisted to database
+        """
+        # Create a provisional transaction
+        provisional_transaction = Transaction(
+            user_id=test_user.id,
+            amount=75.0,
+            concept="la cena",  # This should trigger "Restaurantes" category
+            status=TransactionStatus.PROVISIONAL,
+        )
+        test_db_session.add(provisional_transaction)
+        test_db_session.commit()
+        test_db_session.refresh(provisional_transaction)
+
+        # Call the manual verification service
+        result = verify_transaction_manually(
+            db=test_db_session, transaction_id=provisional_transaction.id
+        )
+
+        # Verify the result
+        assert result is not None
+        assert result.id == provisional_transaction.id
+
+        # Verify status change (Rule 2.3 - Step 2)
+        assert result.status == TransactionStatus.VERIFIED_MANUAL
+
+        # Verify original data is preserved
+        assert result.amount == 75.0  # Original amount preserved
+        assert result.concept == "la cena"  # Original concept preserved
+        assert result.user_id == test_user.id  # User unchanged
+        assert result.merchant is None  # No merchant data (manual verification)
+        assert result.transaction_date is None  # No document data
+        assert result.transaction_time is None  # No document data
+
+        # Verify auto-categorization was applied based on concept (Rule 2.3 - Step 3)
+        assert result.category == "Restaurantes"  # "cena" → "Restaurantes"
+
+        # Verify changes are persisted in database
+        db_transaction = (
+            test_db_session.query(Transaction)
+            .filter(Transaction.id == result.id)
+            .first()
+        )
+        assert db_transaction.status == TransactionStatus.VERIFIED_MANUAL
+        assert db_transaction.category == "Restaurantes"
+
+    def test_fails_with_nonexistent_transaction(self, test_db_session):
+        """Test that manual verification fails appropriately for non-existent transaction."""
+        from fastapi import HTTPException
+
+        # Attempt to verify non-existent transaction
+        with pytest.raises(HTTPException) as exc_info:
+            verify_transaction_manually(db=test_db_session, transaction_id=999)
+
+        assert exc_info.value.status_code == 404
+        assert "Transaction not found" in str(exc_info.value.detail)
+
+    def test_fails_with_already_verified_transaction(self, test_db_session, test_user):
+        """Test that manual verification fails for already verified transactions."""
+        from fastapi import HTTPException
+
+        # Create an already verified transaction
+        verified_transaction = Transaction(
+            user_id=test_user.id,
+            amount=100.0,
+            concept="already verified",
+            status=TransactionStatus.VERIFIED,
+        )
+        test_db_session.add(verified_transaction)
+        test_db_session.commit()
+
+        # Attempt to manually verify already verified transaction
+        with pytest.raises(HTTPException) as exc_info:
+            verify_transaction_manually(
+                db=test_db_session, transaction_id=verified_transaction.id
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "not in provisional state" in str(exc_info.value.detail)
+
+    def test_fails_with_already_manually_verified_transaction(
+        self, test_db_session, test_user
+    ):
+        """Test that manual verification fails for already manually verified transactions."""
+        from fastapi import HTTPException
+
+        # Create an already manually verified transaction
+        manual_verified_transaction = Transaction(
+            user_id=test_user.id,
+            amount=100.0,
+            concept="already manually verified",
+            status=TransactionStatus.VERIFIED_MANUAL,
+        )
+        test_db_session.add(manual_verified_transaction)
+        test_db_session.commit()
+
+        # Attempt to manually verify already manually verified transaction
+        with pytest.raises(HTTPException) as exc_info:
+            verify_transaction_manually(
+                db=test_db_session, transaction_id=manual_verified_transaction.id
             )
 
         assert exc_info.value.status_code == 400
