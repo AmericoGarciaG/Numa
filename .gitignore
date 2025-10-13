@@ -110,3 +110,23 @@ CONTEXT.md
 # Backup files
 *.bak
 *.backup
+
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/terraform.tfvars
+**/*.tfplan
+**/*.tfplan.*
+**/.terraform/
+
+# Google Cloud Platform
+**/.gcp/
+**/gcp-credentials.json
+**/*-key.json
+**/service-account.json
+
+# Infrastructure secrets
+**/secrets/
+**/.env.terraform
