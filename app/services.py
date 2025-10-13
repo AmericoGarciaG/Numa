@@ -9,6 +9,7 @@ import re
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
+from app import models, schemas, security
 from app.models import Transaction, TransactionStatus, User
 from app.schemas import Transaction as TransactionSchema
 from app.simulations import (
@@ -440,14 +441,53 @@ def get_chat_response(db: Session, query: str, user_id: int = 1) -> dict:
     }
 
 
-def get_user_by_id(db: Session, user_id: int) -> User | None:
-    """Get user by ID.
-
+def get_user_by_email(db: Session, email: str) -> models.User | None:
+    """Get user by email.
+    
     Args:
         db: Database session
-        user_id: User ID to retrieve
-
+        email: User email to retrieve
+        
     Returns:
         User: User object if found, None otherwise
     """
-    return db.query(User).filter(User.id == user_id).first()
+    return db.query(models.User).filter(models.User.email == email).first()
+
+
+def create_user(db: Session, user: schemas.UserCreate) -> models.User:
+    """Creates a new user in the database with a hashed password.
+    
+    Args:
+        db: Database session
+        user: User creation schema with email, name, and password
+        
+    Returns:
+        User: The newly created user object
+    """
+    hashed_password = security.get_password_hash(user.password)
+    db_user = models.User(
+        email=user.email, name=user.name, hashed_password=hashed_password
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+
+def authenticate_user(db: Session, email: str, password: str) -> models.User | bool:
+    """Authenticates a user by email and password.
+    
+    Args:
+        db: Database session
+        email: User email
+        password: Plain password to verify
+        
+    Returns:
+        User: User object if authentication successful, False otherwise
+    """
+    user = get_user_by_email(db, email=email)
+    if not user:
+        return False
+    if not security.verify_password(password, user.hashed_password):
+        return False
+    return user

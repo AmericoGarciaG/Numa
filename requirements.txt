@@ -11,6 +11,10 @@ pydantic[email]
 # Utilities
 python-dotenv
 
+# Security & Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+
 # Testing
 pytest
 httpx

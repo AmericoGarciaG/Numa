@@ -23,7 +23,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """Schema for user creation."""
 
-    pass
+    password: str
 
 
 class User(UserBase):
@@ -149,7 +149,6 @@ class ChatQuery(BaseModel):
     """Schema for chat queries in natural language."""
 
     message: str  # Natural language query like "How much did I spend this week?"
-    user_id: int = 1  # Hardcoded for MVP - will be from auth later
 
 
 class ChatResponse(BaseModel):
@@ -160,6 +159,16 @@ class ChatResponse(BaseModel):
     period: Optional[str] = None
     category: Optional[str] = None
     transaction_count: Optional[int] = None
+
+
+# Authentication Schemas
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
 
 
 # Update forward references
