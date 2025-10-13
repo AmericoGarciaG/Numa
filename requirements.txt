@@ -1,10 +1,20 @@
 # Core Framework
 fastapi
 uvicorn[standard]
+python-multipart
 
 # Database & ORM
 sqlalchemy
 pydantic
+pydantic[email]
 
 # Utilities
 python-dotenv
+
+# Testing
+pytest
+httpx
+
+# Code formatting
+black
+isort

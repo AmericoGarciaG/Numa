@@ -44,11 +44,34 @@ share/python-wheels/
 # Database
 *.db
 *.sqlite3
+numa.db
 
 # Logs
 logs/
 *.log
 
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Media files (except test files)
+*.mp3
+*.jpg
+*.wav
+*.png
+*.jpeg
+# But keep test files
+!tests/audio_dummy.mp3
+!tests/recibo_starbucks.jpg
+
+# Temporary files
+debug_*.py
+temp_*.py
+
 # OS
 .DS_Store
 Thumbs.db
+
+# FastAPI/Uvicorn
+.uvicorn-reload
