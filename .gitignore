@@ -130,3 +130,5 @@ CONTEXT.md
 # Infrastructure secrets
 **/secrets/
 **/.env.terraform
+AUDIT_REPORT.md
+audit_project.ps1

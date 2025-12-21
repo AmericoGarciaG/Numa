@@ -14,7 +14,7 @@ from sqlalchemy import (Column, DateTime, Enum, Float, ForeignKey, Integer,
                         String, Text)
 from sqlalchemy.orm import relationship
 
-from app.database import Base
+from src.core.database import Base
 
 
 class TransactionStatus(enum.Enum):
