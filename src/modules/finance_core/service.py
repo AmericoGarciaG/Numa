@@ -80,17 +80,27 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
 # ============================================================================
 
 def create_provisional_transaction(
-    db: Session, user_id: int, amount: float, concept: str
+    db: Session, 
+    user_id: int, 
+    amount: float, 
+    concept: str,
+    merchant: Optional[str] = None,
+    category: Optional[str] = None,
+    transaction_date: Optional[datetime] = None
 ) -> Transaction:
     """Create a provisional transaction.
     
     Implements LOGIC.md Rule 2.1 (Creación Provisional por Voz) - Step 3.
+    Enhanced to store AI-extracted metadata if available.
     
     Args:
         db: Database session
         user_id: ID of the user creating the transaction
         amount: Transaction amount
         concept: Transaction concept/description
+        merchant: Optional merchant name
+        category: Optional category
+        transaction_date: Optional transaction date
         
     Returns:
         Transaction: The newly created provisional transaction
@@ -100,6 +110,9 @@ def create_provisional_transaction(
         amount=amount,
         concept=concept,
         status=TransactionStatus.PROVISIONAL,
+        merchant=merchant,
+        category=category,
+        transaction_date=transaction_date
     )
     
     db.add(transaction)

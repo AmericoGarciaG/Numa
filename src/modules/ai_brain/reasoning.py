@@ -27,8 +27,8 @@ class GeminiReasoning:
             location=settings.GOOGLE_LOCATION
         )
         
-        # gemini-1.5-flash is the alias for the latest version
-        self.model = GenerativeModel("gemini-1.5-flash")
+        # gemini-2.0-flash-exp detected as available by diagnostic
+        self.model = GenerativeModel("gemini-2.0-flash-exp")
 
     def extract_transaction_data(self, text: str) -> Dict[str, Any]:
         """Extract structured transaction data from text.

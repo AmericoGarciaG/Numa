@@ -70,7 +70,7 @@ def run_scenario():
             response = client.post("/api/transactions/voice", headers=headers, files=files)
             
         print(f"Status Code: {response.status_code}")
-        if response.status_code == 200:
+        if response.status_code in [200, 201]:
             print("✅ Transacción creada exitosamente.")
             print(f"Respuesta JSON (Lo que entendió Gemini):\n{json.dumps(response.json(), indent=2, ensure_ascii=False)}")
         else:

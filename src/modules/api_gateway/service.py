@@ -71,20 +71,24 @@ async def orchestrate_voice_transaction(
 
     concept = extracted_data.get("concept", "Gasto sin concepto")
     
+    # Parse date if available
+    transaction_date = None
+    date_str = extracted_data.get("date")
+    if date_str:
+        try:
+            transaction_date = datetime.strptime(date_str, "%Y-%m-%d")
+        except ValueError:
+            pass  # Keep as None if invalid format
+
     transaction = finance_core.create_provisional_transaction(
         db=db,
         user_id=user_id,
         amount=amount,
-        concept=concept
+        concept=concept,
+        merchant=extracted_data.get("merchant"),
+        category=extracted_data.get("category"),
+        transaction_date=transaction_date
     )
-    
-    # Note: If Gemini extracted a category, we might want to update it immediately,
-    # but the rule says "Provisional". 
-    # Logic 2.1 says "Step 3: ... estado PROVISIONAL".
-    # Logic 2.3 (Manual) allows category.
-    # We could optionally set category if FinanceCore allows updating it on creation or shortly after.
-    # FinanceCore `create_provisional_transaction` only takes amount and concept.
-    # We will stick to the core interface for now.
     
     return transaction
 
