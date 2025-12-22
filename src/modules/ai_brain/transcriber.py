@@ -115,7 +115,7 @@ class Transcriber:
         
         config = RecognitionConfig(
             auto_decoding_config=AutoDetectDecodingConfig(),
-            model="chirp",
+            model="latest_long",
             language_codes=[language_code],
             features=RecognitionFeatures(
                 enable_word_time_offsets=False,
@@ -132,10 +132,13 @@ class Transcriber:
         try:
             response = self.client.recognize(request=request)
         except Exception as e:
-            # Fallback: Try to create the recognizer if it doesn't exist
-            if "NOT_FOUND" in str(e):
+            # Check for standard Google API NotFound error
+            # It might come as ServiceUnavailable or NotFound depending on exact path state
+            error_str = str(e)
+            if "404" in error_str or "NotFound" in error_str:
                 print(f"Recognizer {recognizer_id} not found. Creating...")
                 await self._create_recognizer(parent, recognizer_id, language_code)
+                # Retry once
                 response = self.client.recognize(request=request)
             else:
                 raise e
@@ -154,7 +157,7 @@ class Transcriber:
 
         recognizer = Recognizer(
             default_recognition_config=RecognitionConfig(
-                model="chirp",
+                model="latest_long",
                 language_codes=[language_code],
                 features=RecognitionFeatures(
                     enable_automatic_punctuation=True,
