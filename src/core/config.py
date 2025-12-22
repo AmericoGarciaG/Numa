@@ -17,8 +17,8 @@ class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./numa.db")
     
     # Google Cloud
-    GCP_PROJECT_ID: str = os.getenv("GCP_PROJECT_ID", "numa-mvp-local")
-    GCP_REGION: str = os.getenv("GCP_REGION", "us-central1")
+    GOOGLE_PROJECT_ID: str = os.getenv("GOOGLE_PROJECT_ID", "numa-mvp-local")
+    GOOGLE_LOCATION: str = os.getenv("GOOGLE_LOCATION", "us-central1")
     GOOGLE_APPLICATION_CREDENTIALS: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
     
     # JWT Authentication
