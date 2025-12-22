@@ -34,7 +34,7 @@ En este proyecto, no programamos "a mano" al estilo tradicional. Usamos un marco
 
 ### Las Reglas del Juego:
 1.  **Tú eres el Director, la IA es el Constructor:** Tu trabajo no es picar código, es definir **Lógica**. Usamos un agente de IA (llamado *Antigravity*) para escribir la implementación técnica.
-2.  **El `LOGIC.md` es la Constitución:** Todo lo que el sistema hace debe estar escrito primero en el archivo `services/numa-api/Context/LOGIC.md`. Si no está en el libro, no existe.
+2.  **El `LOGIC.md` es la Constitución:** Todo lo que el sistema hace debe estar escrito primero en el archivo `docs/LOGIC.md`. Si no está en el libro, no existe.
 3.  **Cajas Negras Lógicas (Módulos Nexus):** Organizamos el código en módulos que se comportan como microservicios internos, pero viven en un solo repositorio. Esto facilita el desarrollo local y la migración futura a la nube.
 
 **Tu flujo de trabajo será:**
@@ -163,9 +163,10 @@ Numa/
 │   │   ├── auth.py               # Autenticación JWT
 │   │   └── config.py             # Configuración global
 │   └── main.py                   # ← PUNTO DE ENTRADA (FastAPI app)
-├── services/numa-api/Context/    # Documentación de lógica
+├── docs/                         # Documentación de lógica
 │   ├── LOGIC.md                  # ← LA CONSTITUCIÓN
-│   └── GOVERNANCE.md             # ← EL PROTOCOLO NEXUS
+│   └── ...
+├── GOVERNANCE.md                 # ← EL PROTOCOLO NEXUS (en raíz)
 ├── requirements.txt              # Dependencias Python
 └── README.md
 ```
@@ -201,7 +202,17 @@ gcloud auth application-default login
 gcloud config set project numa-mvp-local
 ```
 
-Esto creará credenciales en tu máquina que el SDK de Google usará automáticamente.
+### Paso 3.1: Obtener Archivo de Credenciales (CRÍTICO)
+Para que el entorno local funcione como producción, necesitamos un archivo de Service Account:
+
+1.  Ve a [Google Cloud Console > IAM & Admin > Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts).
+2.  Crea una cuenta de servicio (ej: `numa-local-dev`).
+3.  Dale permisos: `Vertex AI User`, `Cloud Speech Client`.
+4.  Ve a la pestaña **KEYS** > **Add Key** > **Create new key** > **JSON**.
+5.  Se descargará un archivo. **Renómbralo a `credentials.json`**.
+6.  Muévelo a la **raíz del proyecto**.
+
+> **⚠️ IMPORTANTE:** Nunca subas `credentials.json` a GitHub. Ya está en `.gitignore`.
 
 ### Paso 4: Configurar Variables de Entorno
 Crea un archivo `.env` en la raíz del proyecto:
@@ -283,8 +294,8 @@ Cuando migremos a microservicios, el primer ejemplo solo requiere cambiar la imp
 
 ## 10. Próximos Pasos
 
-1.  **Lee la Lógica:** Ve a `services/numa-api/Context/LOGIC.md`. Ahí están las reglas del negocio.
-2.  **Lee la Gobernanza:** Ve a `services/numa-api/Context/GOVERNANCE.md`. Ahí está el Protocolo Nexus completo.
+1.  **Lee la Lógica:** Ve a `docs/LOGIC.md`. Ahí están las reglas del negocio.
+2.  **Lee la Gobernanza:** Ve a `GOVERNANCE.md`. Ahí está el Protocolo Nexus completo.
 3.  **Explora el Código:** Navega por `/src/modules/` para ver cómo están implementados los módulos.
 4.  **Prueba el Sistema:** Usa la documentación interactiva en `/docs` para hacer llamadas a la API.
 5.  **Consulta el Roadmap:** Ve a `ROADMAP.md` para ver qué estamos construyendo a continuación.

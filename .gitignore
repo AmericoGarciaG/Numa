@@ -132,3 +132,7 @@ CONTEXT.md
 **/.env.terraform
 AUDIT_REPORT.md
 audit_project.ps1
+audit_nexus.ps1
+AUDIT_NEXUS_REPORT.md
+Prompt - Reporte de Auditoría Numa.md
+credentials.json
