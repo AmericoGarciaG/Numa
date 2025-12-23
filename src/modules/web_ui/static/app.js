@@ -236,10 +236,11 @@ const app = {
                 body: formData
             });
 
-            if (response.status === 201) { // 201 Created
-                const transaction = await response.json();
-                this.showSuccess(transaction);
-                this.refreshTransactions(); // Auto-refresh report
+            if (response.status === 201) {
+                const data = await response.json();
+                const transactions = Array.isArray(data) ? data : [data];
+                this.showSuccess(transactions);
+                this.refreshTransactions();
             } else {
                 const err = await response.text();
                 throw new Error(err);
@@ -253,14 +254,26 @@ const app = {
         }
     },
 
-    showSuccess: function (t) {
-        this.updateStatus("¡Listo!", "Gasto registrado");
+    showSuccess: function (transactions) {
+        const list = Array.isArray(transactions) ? transactions : [transactions];
+        const count = list.length;
+        const last = list[list.length - 1];
+        const totalAmount = list.reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
-        // Populate Card
-        this.elements.cardConcept.textContent = t.concept;
-        this.elements.cardAmount.textContent = `$${t.amount.toFixed(2)}`;
-        this.elements.cardCategory.textContent = t.category || "General";
-        this.elements.cardMerchant.innerHTML = `<i class="fa-solid fa-store mr-1"></i> ${t.merchant || "Desconocido"}`;
+        if (count > 1) {
+            this.updateStatus("¡Listo!", `${count} transacciones registradas`);
+            this.elements.cardConcept.textContent = `${count} transacciones registradas`;
+            this.elements.cardAmount.textContent = `$${totalAmount.toFixed(2)}`;
+            this.elements.cardCategory.textContent = "Múltiples";
+            this.elements.cardMerchant.innerHTML = `<i class="fa-solid fa-store mr-1"></i> Varios`;
+        } else {
+            const t = last;
+            this.updateStatus("¡Listo!", "Transacción registrada");
+            this.elements.cardConcept.textContent = t.concept;
+            this.elements.cardAmount.textContent = `$${t.amount.toFixed(2)}`;
+            this.elements.cardCategory.textContent = t.category || "General";
+            this.elements.cardMerchant.innerHTML = `<i class="fa-solid fa-store mr-1"></i> ${t.merchant || "Desconocido"}`;
+        }
 
         // Show Card with animation
         const card = this.elements.resultCard;

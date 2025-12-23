@@ -67,13 +67,17 @@ Todo input (Voz o Texto) sigue este flujo orquestado:
     *   **Acción:** Analiza el texto para determinar la `intent` (Taxonomía 2.1) y extraer `entities` relevantes.
     *   **Contrato de Salida (JSON):**
         ```json
-        {
-          "intent": "WRITE_LOG",
-          "sub_intent": "EXPENSE",
-          "entities": { ... },
-          "confidence": 0.98
-        }
+        [
+          {
+            "intent": "WRITE_LOG",
+            "sub_intent": "EXPENSE",
+            "entities": {},
+            "confidence": 0.98
+          }
+        ]
         ```
+    *   **Regla de Multiplicidad:** El Router SIEMPRE devuelve una lista (array) de objetos JSON, incluso si solo hay una intención detectada.
+    *   **Regla de Persistencia:** Para intenciones de tipo `WRITE_LOG`, el Orquestador debe iterar sobre cada elemento de la lista y crear una transacción independiente en `Finance Core`.
 
 3.  **Ejecución Especializada (Routing):**
     *   **Actor:** `API Gateway` (Orquestador).

@@ -6,7 +6,7 @@ It is optimized for structured JSON extraction from natural language.
 
 import json
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import os
 
 import vertexai
@@ -30,23 +30,23 @@ class GeminiReasoning:
         # gemini-2.0-flash-exp detected as available by diagnostic
         self.model = GenerativeModel("gemini-2.0-flash-exp")
 
-    def extract_transaction_data(self, text: str) -> Dict[str, Any]:
-        """Extract structured transaction data from text.
+    def extract_transaction_data(self, text: str) -> List[Dict[str, Any]]:
+        """Extract one or more structured transactions from text.
 
         Args:
             text: The natural language text (e.g., "Gasté 500 pesos en Soriana hoy").
 
         Returns:
-            dict: Structured data {amount, concept, merchant, date, category}.
+            list[dict]: List of structured transactions.
         """
         # Prompt optimized for JSON extraction
         prompt = f"""
-        You are a financial assistant. Analyze the text and classify the intent as 'EXPENSE', 'INCOME', or 'DEBT'.
-        Extract transaction details from the following text into a strict JSON format.
+        You are a financial assistant. Analyze the text and identify all distinct financial actions.
+        You MUST return a JSON ARRAY (top-level) of transaction objects, even if there is only one.
 
         Text: "{text}"
 
-        Output JSON with these keys:
+        For EACH financial action, output an object with these keys:
         - type: string (must be one of: 'EXPENSE', 'INCOME', 'DEBT')
         - amount: number (float)
         - concept: string (short description)
@@ -54,7 +54,27 @@ class GeminiReasoning:
         - date: string (ISO 8601 format YYYY-MM-DD, assume today is {datetime.now().strftime('%Y-%m-%d')} if not specified)
         - category: string (guess one: Alimentación, Transporte, Servicios, Ocio, Nómina, Transferencia, Otros)
 
-        Return ONLY the JSON object.
+        Example output:
+        [
+          {{
+            "type": "EXPENSE",
+            "amount": 100,
+            "concept": "pago de luz",
+            "merchant": "CFE",
+            "date": "{datetime.now().strftime('%Y-%m-%d')}",
+            "category": "Servicios"
+          }},
+          {{
+            "type": "DEBT",
+            "amount": 500,
+            "concept": "préstamo de Juan",
+            "merchant": "Juan",
+            "date": "{datetime.now().strftime('%Y-%m-%d')}",
+            "category": "Otros"
+          }}
+        ]
+
+        Return ONLY the JSON array.
         """
 
         try:
@@ -72,13 +92,16 @@ class GeminiReasoning:
             if clean_text.endswith("```"):
                 clean_text = clean_text[:-3]
             
-            return json.loads(clean_text)
+            data = json.loads(clean_text)
+            if isinstance(data, dict):
+                return [data]
+            return data
         except Exception as e:
             print(f"Vertex AI Gemini extraction failed: {e}")
             # Re-raise to be handled by caller
             raise ValueError(f"Failed to extract info from text: {text}") from e
 
-    async def analyze_audio_direct(self, audio_bytes: bytes) -> Dict[str, Any]:
+    async def analyze_audio_direct(self, audio_bytes: bytes) -> List[Dict[str, Any]]:
         """Analyze audio bytes directly using Gemini Multimodal capabilities."""
         from vertexai.generative_models import Part
 
@@ -86,16 +109,18 @@ class GeminiReasoning:
         audio_part = Part.from_data(data=audio_bytes, mime_type="audio/webm")
 
         prompt = f"""
-        Extract transaction details from this audio recording into JSON format.
-        
-        Output JSON with these keys:
+        You are a financial assistant. Listen to the audio and identify all distinct financial actions.
+        You MUST return a JSON ARRAY (top-level) of transaction objects, even if there is only one.
+
+        For EACH financial action, output an object with these keys:
+        - type: string (must be one of: 'EXPENSE', 'INCOME', 'DEBT')
         - amount: number (float)
         - concept: string (short description)
-        - merchant: string (or null if not mentioned)
+        - merchant: string (the source for INCOME, the creditor for DEBT, or the store for EXPENSE. Null if not mentioned)
         - date: string (ISO 8601 format YYYY-MM-DD, assume today is {datetime.now().strftime('%Y-%m-%d')} if not specified)
-        - category: string (guess one: Alimentación, Transporte, Servicios, Ocio, Otros)
+        - category: string (guess one: Alimentación, Transporte, Servicios, Ocio, Nómina, Transferencia, Otros)
 
-        Return ONLY the JSON string.
+        Return ONLY the JSON array.
         """
         
         try:
@@ -110,7 +135,10 @@ class GeminiReasoning:
             if clean_text.endswith("```"):
                 clean_text = clean_text[:-3]
 
-            return json.loads(clean_text)
+            data = json.loads(clean_text)
+            if isinstance(data, dict):
+                return [data]
+            return data
         except Exception as e:
             print(f"Vertex AI Gemini Audio analysis failed: {e}")
             raise ValueError("Gemini couldn't understand the audio.") from e
@@ -119,10 +147,10 @@ class GeminiReasoning:
 # Global instance
 reasoner = GeminiReasoning()
 
-def extract_transaction_data(text: str) -> Dict[str, Any]:
+def extract_transaction_data(text: str) -> List[Dict[str, Any]]:
     """Public wrapper for extraction."""
     return reasoner.extract_transaction_data(text)
 
-async def analyze_audio_direct(audio_bytes: bytes) -> Dict[str, Any]:
+async def analyze_audio_direct(audio_bytes: bytes) -> List[Dict[str, Any]]:
     """Public wrapper for direct audio analysis."""
     return await reasoner.analyze_audio_direct(audio_bytes)

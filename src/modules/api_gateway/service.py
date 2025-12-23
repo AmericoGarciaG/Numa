@@ -58,26 +58,42 @@ async def orchestrate_voice_transaction(
     # Fallback to Gemini Multimodal if STT fails or returns empty
     if not transcribed_text:
         print("[WARN] Transcription failed/empty. Attempting Gemini Multimodal Fallback...")
-        # from src.modules.ai_brain import reasoning # reasoning is already imported
         try:
-             # Use the new direct audio analysis method
-             extracted_data = await reasoning.analyze_audio_direct(audio_bytes)
-             print(f"DEBUG: Gemini Fallback Success: {extracted_data}")
-             
-             # Create transaction directly from Gemini data
-             return finance_core.create_provisional_transaction(
-                db=db,
-                user_id=user_id,
-                amount=extracted_data.get("amount", 0.0),
-                concept=extracted_data.get("concept", "Gasto de voz"),
-                transaction_type=TransactionType[extracted_data.get("type", "EXPENSE").upper()],
-                category=extracted_data.get("category"),
-                merchant=extracted_data.get("merchant"),
-                transaction_date=extracted_data.get("date")
-             )
+            extracted_list = await reasoning.analyze_audio_direct(audio_bytes)
+            print(f"DEBUG: Gemini Fallback Success: {extracted_list}")
+
+            transactions = []
+            for item in extracted_list:
+                try:
+                    amount = float(item.get("amount", 0.0))
+                except (ValueError, TypeError):
+                    amount = 0.0
+
+                concept = item.get("concept", "Gasto de voz")
+                date_str = item.get("date")
+                transaction_date = None
+                if date_str:
+                    try:
+                        transaction_date = datetime.strptime(date_str, "%Y-%m-%d")
+                    except ValueError:
+                        transaction_date = None
+
+                tx = finance_core.create_provisional_transaction(
+                    db=db,
+                    user_id=user_id,
+                    amount=amount,
+                    concept=concept,
+                    transaction_type=TransactionType[item.get("type", "EXPENSE").upper()],
+                    category=item.get("category"),
+                    merchant=item.get("merchant"),
+                    transaction_date=transaction_date,
+                )
+                transactions.append(tx)
+
+            return transactions
         except Exception as gemini_err:
-             print(f"ERROR: Gemini Fallback Failed: {gemini_err}")
-             raise ValueError("No se pudo entender el audio (STT vacío y Gemini falló). Intenta hablar más claro.")
+            print(f"ERROR: Gemini Fallback Failed: {gemini_err}")
+            raise ValueError("No se pudo entender el audio (STT vacío y Gemini falló). Intenta hablar más claro.")
 
     # Standard Flow (if STT worked)
     print(f"DEBUG: Transcribed text: {transcribed_text}")
@@ -87,40 +103,42 @@ async def orchestrate_voice_transaction(
 
     # Step 2: Extract transaction data using AIBrain (Real Gemini)
     try:
-        extracted_data = reasoning.extract_transaction_data(transcribed_text)
-        print(f"DEBUG: Extracted data: {extracted_data}")
+        extracted_list = reasoning.extract_transaction_data(transcribed_text)
+        print(f"DEBUG: Extracted data list: {extracted_list}")
     except Exception as e:
         raise ValueError(f"Data extraction failed: {str(e)}")
     
-    # Step 3: Create provisional transaction using FinanceCore
-    # Ensure amount is float
-    try:
-        amount = float(extracted_data.get("amount", 0.0))
-    except (ValueError, TypeError):
-        amount = 0.0
-
-    concept = extracted_data.get("concept", "Gasto sin concepto")
-    
-    # Parse date if available
-    transaction_date = None
-    date_str = extracted_data.get("date")
-    if date_str:
+    # Step 3: Create provisional transactions using FinanceCore
+    transactions = []
+    for item in extracted_list:
         try:
-            transaction_date = datetime.strptime(date_str, "%Y-%m-%d")
-        except ValueError:
-            pass  # Keep as None if invalid format
+            amount = float(item.get("amount", 0.0))
+        except (ValueError, TypeError):
+            amount = 0.0
 
-    transaction = finance_core.create_provisional_transaction(
-        db=db,
-        user_id=user_id,
-        amount=amount,
-        concept=concept,
-        merchant=extracted_data.get("merchant"),
-        category=extracted_data.get("category"),
-        transaction_date=transaction_date
-    )
-    
-    return transaction
+        concept = item.get("concept", "Gasto sin concepto")
+
+        transaction_date = None
+        date_str = item.get("date")
+        if date_str:
+            try:
+                transaction_date = datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                transaction_date = None
+
+        tx = finance_core.create_provisional_transaction(
+            db=db,
+            user_id=user_id,
+            amount=amount,
+            concept=concept,
+            transaction_type=TransactionType[item.get("type", "EXPENSE").upper()],
+            merchant=item.get("merchant"),
+            category=item.get("category"),
+            transaction_date=transaction_date,
+        )
+        transactions.append(tx)
+
+    return transactions
 
 
 # ============================================================================

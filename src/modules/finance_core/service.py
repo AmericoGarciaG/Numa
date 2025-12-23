@@ -84,6 +84,7 @@ def create_provisional_transaction(
     user_id: int, 
     amount: float, 
     concept: str,
+    transaction_type: TransactionType = TransactionType.EXPENSE,
     merchant: Optional[str] = None,
     category: Optional[str] = None,
     transaction_date: Optional[datetime] = None
@@ -109,6 +110,7 @@ def create_provisional_transaction(
         user_id=user_id,
         amount=amount,
         concept=concept,
+        type=transaction_type,
         status=TransactionStatus.PROVISIONAL,
         merchant=merchant,
         category=category,
