@@ -311,19 +311,41 @@ const app = {
             return;
         }
 
-        // Sort by id desc (newest first) logic should be in backend but lets ensure
         const sorted = transactions.sort((a, b) => b.id - a.id).slice(0, 10);
 
         sorted.forEach(t => {
             const row = document.createElement('tr');
-            row.className = 'border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors';
+            const status = t.status || 'provisional';
+            const isProvisional = status === 'provisional';
+            const hasMerchant = !!(t.merchant && t.merchant.trim());
+
+            let statusLabel = 'Pendiente';
+            let statusClasses = 'bg-amber-100 text-amber-700';
+            let merchantText = t.merchant || '—';
+            let rowExtraClasses = '';
+
+            if (status === 'verified' || status === 'verified_manual') {
+                statusLabel = 'Validado';
+                statusClasses = 'bg-emerald-100 text-emerald-700';
+            }
+
+            if (isProvisional && !hasMerchant) {
+                rowExtraClasses = 'bg-red-50';
+                merchantText = 'Falta Comercio';
+                statusClasses = 'bg-red-100 text-red-700';
+            }
+
+            row.className = `border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors ${rowExtraClasses}`;
 
             const dateStr = new Date(t.created_at).toLocaleDateString();
 
             row.innerHTML = `
                 <td class="px-4 py-3">
                     <div class="font-medium text-slate-800">${t.concept}</div>
-                    <div class="text-xs text-slate-400">${t.merchant || '—'}</div>
+                    <div class="mt-0.5 flex items-center gap-2">
+                        <span class="text-xs text-slate-400">${merchantText}</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full ${statusClasses}">${statusLabel}</span>
+                    </div>
                 </td>
                 <td class="px-4 py-3 text-right">
                     <div class="font-bold text-slate-700">$${t.amount.toFixed(2)}</div>

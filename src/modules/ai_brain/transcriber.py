@@ -4,17 +4,15 @@ This module handles audio transcription using the latest Google Cloud Speech-to-
 It specifically targets the 'chirp' model (USM) for high-accuracy Spanish transcription.
 """
 
-from typing import Union, BinaryIO
 import os
+from typing import BinaryIO, Union
 
-from google.cloud.speech_v2 import SpeechClient
-from google.cloud.speech_v2.types import (
-    RecognizeRequest,
-    RecognitionConfig,
-    RecognitionFeatures,
-    ExplicitDecodingConfig,
-)
 from google.api_core.client_options import ClientOptions
+from google.cloud.speech_v2 import SpeechClient
+from google.cloud.speech_v2.types import (ExplicitDecodingConfig,
+                                          RecognitionConfig,
+                                          RecognitionFeatures,
+                                          RecognizeRequest)
 
 from src.core.config import settings
 
@@ -28,13 +26,15 @@ class Transcriber:
         # Note: Chirp often requires specific regional endpoints (e.g. us-central1)
         location = settings.GOOGLE_LOCATION
         api_endpoint = f"{location}-speech.googleapis.com"
-        
+
         client_options = ClientOptions(api_endpoint=api_endpoint)
         self.client = SpeechClient(client_options=client_options)
         self.project_id = settings.GOOGLE_PROJECT_ID
         self.location = location
 
-    async def transcribe(self, audio_content: bytes, language_code: str = "es-MX") -> str:
+    async def transcribe(
+        self, audio_content: bytes, language_code: str = "es-MX"
+    ) -> str:
         """Transcribe audio bytes to text using the Chirp model.
 
         Args:
@@ -53,11 +53,11 @@ class Transcriber:
 
         # Logic to check/create recognizer involves calling API.
         # For this prototype, we rely on lazy creation in the exception handler.
-        
+
         config = RecognitionConfig(
             explicit_decoding_config=ExplicitDecodingConfig(
                 encoding="WEBM_OPUS",
-                sample_rate_hertz=48000, # Standard for WebM
+                sample_rate_hertz=48000,  # Standard for WebM
                 audio_channel_count=1,
             ),
             model="latest_long",
@@ -96,9 +96,12 @@ class Transcriber:
 
         return transcription.strip()
 
-    async def _create_recognizer(self, parent: str, recognizer_id: str, language_code: str):
+    async def _create_recognizer(
+        self, parent: str, recognizer_id: str, language_code: str
+    ):
         """Creates a Chirp recognizer."""
-        from google.cloud.speech_v2.types import CreateRecognizerRequest, Recognizer
+        from google.cloud.speech_v2.types import (CreateRecognizerRequest,
+                                                  Recognizer)
 
         recognizer = Recognizer(
             default_recognition_config=RecognitionConfig(
@@ -129,6 +132,7 @@ class Transcriber:
 
 # Global instance
 transcriber = Transcriber()
+
 
 async def transcribe_audio(audio_bytes: bytes, language: str = "es-MX") -> str:
     """Public wrapper for the transcriber."""

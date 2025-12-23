@@ -4,17 +4,19 @@ This module defines all HTTP endpoints for the Numa API.
 Endpoints delegate to the orchestration service.
 """
 
+import os
+import shutil
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
-import shutil
-import os
-from datetime import datetime
 
 from src.core import auth, database
-from src.modules.finance_core import schemas, service as finance_service
 from src.modules.api_gateway import service as gateway_service
+from src.modules.finance_core import schemas
+from src.modules.finance_core import service as finance_service
 
 # Create router
 router = APIRouter()
@@ -40,7 +42,7 @@ def get_current_user(
         token_data = schemas.TokenData(email=email)
     except JWTError:
         raise credentials_exception
-    
+
     user = finance_service.get_user_by_email(db, email=token_data.email)
     if user is None:
         raise credentials_exception
@@ -51,6 +53,7 @@ def get_current_user(
 # PUBLIC ENDPOINTS
 # ============================================================================
 
+
 @router.get("/")
 def read_root():
     """Root endpoint with welcome message."""
@@ -60,14 +63,14 @@ def read_root():
 @router.post("/users/", response_model=schemas.User)
 def register_user(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
     """Registers a new user.
-    
+
     Args:
         user: User creation data with email, name, and password
         db: Database session dependency
-        
+
     Returns:
         User: The newly created user
-        
+
     Raises:
         HTTPException: If email is already registered
     """
@@ -79,17 +82,18 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(database.get_d
 
 @router.post("/token", response_model=schemas.Token)
 def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(database.get_db),
 ):
     """Provides a JWT token for valid user credentials.
-    
+
     Args:
         form_data: OAuth2 form data with username (email) and password
         db: Database session dependency
-        
+
     Returns:
         Token: JWT access token with token type
-        
+
     Raises:
         HTTPException: If credentials are invalid
     """
@@ -108,14 +112,17 @@ def login_for_access_token(
 # TRANSACTION ENDPOINTS (Protected)
 # ============================================================================
 
-@router.post("/transactions/voice", response_model=list[schemas.Transaction], status_code=201)
+
+@router.post(
+    "/transactions/voice", response_model=list[schemas.Transaction], status_code=201
+)
 async def create_transaction_from_voice(
     audio_file: UploadFile = File(...),
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: Session = Depends(database.get_db),
 ):
     """Create a provisional transaction from voice command.
-    
+
     Implements LOGIC.md Rule 2.1 (Creación Provisional por Voz).
     Protected with JWT authentication.
     """
@@ -125,11 +132,12 @@ async def create_transaction_from_voice(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     # Get extension from filename if possible, else default to .webm
     ext = os.path.splitext(audio_file.filename)[1] if audio_file.filename else ".webm"
-    if not ext: ext = ".webm"
-    
+    if not ext:
+        ext = ".webm"
+
     filename = f"debug_{timestamp}_user{current_user.id}{ext}"
     file_path = os.path.join(debug_dir, filename)
-    
+
     # Reset file pointer to beginning before saving
     await audio_file.seek(0)
 
@@ -137,12 +145,12 @@ async def create_transaction_from_voice(
     file_content = await audio_file.read()
     print(f"[DEBUG] Received audio file size: {len(file_content)} bytes")
     await audio_file.seek(0)
-    
+
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(audio_file.file, buffer)
-        
+
     print(f"[DEBUG] Audio saved to: {file_path}")
-    
+
     # Reset file pointer again so the next service can read it
     await audio_file.seek(0)
     try:
@@ -154,15 +162,17 @@ async def create_transaction_from_voice(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/transactions/{transaction_id}/verify", response_model=schemas.Transaction)
+@router.post(
+    "/transactions/{transaction_id}/verify", response_model=schemas.Transaction
+)
 async def verify_transaction(
-    transaction_id: int, 
-    document: UploadFile = File(...), 
-    current_user = Depends(get_current_user),
-    db: Session = Depends(database.get_db)
+    transaction_id: int,
+    document: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(database.get_db),
 ):
     """Verify a provisional transaction using a source document.
-    
+
     Implements LOGIC.md Rule 2.2 (Verificación por Comprobante).
     Protected with JWT authentication.
     """
@@ -172,14 +182,16 @@ async def verify_transaction(
     return transaction
 
 
-@router.post("/transactions/{transaction_id}/verify_manual", response_model=schemas.Transaction)
+@router.post(
+    "/transactions/{transaction_id}/verify_manual", response_model=schemas.Transaction
+)
 async def verify_transaction_manual(
-    transaction_id: int, 
-    current_user = Depends(get_current_user),
-    db: Session = Depends(database.get_db)
+    transaction_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(database.get_db),
 ):
     """Manually verify a provisional transaction without a source document.
-    
+
     Implements LOGIC.md Rule 2.3 (Creación Verificada Manualmente).
     Protected with JWT authentication.
     """
@@ -191,8 +203,7 @@ async def verify_transaction_manual(
 
 @router.get("/transactions", response_model=list[schemas.Transaction])
 def get_transactions(
-    current_user = Depends(get_current_user),
-    db: Session = Depends(database.get_db)
+    current_user=Depends(get_current_user), db: Session = Depends(database.get_db)
 ):
     """Get all transactions for the current user."""
     return finance_service.get_user_transactions(db=db, user_id=current_user.id)
@@ -202,14 +213,15 @@ def get_transactions(
 # CHAT ENDPOINT (Protected)
 # ============================================================================
 
+
 @router.post("/chat", response_model=schemas.ChatResponse)
 async def chat_with_numa(
-    chat_query: schemas.ChatQuery, 
-    current_user = Depends(get_current_user),
-    db: Session = Depends(database.get_db)
+    chat_query: schemas.ChatQuery,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(database.get_db),
 ):
     """Chat endpoint for conversational queries about expenses.
-    
+
     Implements LOGIC.md Rules 3.1 and 3.2 (Consultas Básicas de Gastos).
     Protected with JWT authentication.
     """
@@ -226,22 +238,30 @@ async def chat_with_numa(
 # ALTERNATIVE ENDPOINTS (for backward compatibility)
 # ============================================================================
 
+
 @router.post("/upload-audio")
 async def upload_audio(
     audio_file: UploadFile = File(...),
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: Session = Depends(database.get_db),
 ):
     """Alternative endpoint for creating transaction from voice."""
-    return await create_transaction_from_voice(audio_file=audio_file, current_user=current_user, db=db)
+    return await create_transaction_from_voice(
+        audio_file=audio_file, current_user=current_user, db=db
+    )
 
 
 @router.post("/upload-document")
 async def upload_document(
     transaction_id: int,
     document: UploadFile = File(...),
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: Session = Depends(database.get_db),
 ):
     """Alternative endpoint for verifying transaction with document."""
-    return await verify_transaction(transaction_id=transaction_id, document=document, current_user=current_user, db=db)
+    return await verify_transaction(
+        transaction_id=transaction_id,
+        document=document,
+        current_user=current_user,
+        db=db,
+    )

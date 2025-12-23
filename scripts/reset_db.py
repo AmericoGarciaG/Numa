@@ -11,13 +11,14 @@ import os
 import sys
 
 # Add the project root to the Python path to allow imports from src
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
-from src.core.database import engine, Base
-from src.modules.finance_core.models import User, Transaction
+from src.core.database import Base, engine
+from src.modules.finance_core.models import Transaction, User
 
 DB_FILE = "numa_local.db"
+
 
 def reset_database():
     """Deletes and recreates the database."""
@@ -44,6 +45,7 @@ def reset_database():
     except Exception as e:
         print(f"Error: Could not create database tables. Reason: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     reset_database()

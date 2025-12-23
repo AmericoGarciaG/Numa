@@ -68,7 +68,9 @@ class Transaction(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     # Core transaction data
-    type = Column(Enum(TransactionType), nullable=False, default=TransactionType.EXPENSE)
+    type = Column(
+        Enum(TransactionType), nullable=False, default=TransactionType.EXPENSE
+    )
     amount = Column(Float, nullable=False)
     concept = Column(String, nullable=False)  # Description from voice command
 
