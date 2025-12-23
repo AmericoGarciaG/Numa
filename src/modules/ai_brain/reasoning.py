@@ -41,18 +41,20 @@ class GeminiReasoning:
         """
         # Prompt optimized for JSON extraction
         prompt = f"""
-        You are a financial assistant. Extract transaction details from the following text into JSON format.
-        
+        You are a financial assistant. Analyze the text and classify the intent as 'EXPENSE', 'INCOME', or 'DEBT'.
+        Extract transaction details from the following text into a strict JSON format.
+
         Text: "{text}"
-        
+
         Output JSON with these keys:
+        - type: string (must be one of: 'EXPENSE', 'INCOME', 'DEBT')
         - amount: number (float)
         - concept: string (short description)
-        - merchant: string (or null if not mentioned)
+        - merchant: string (the source for INCOME, the creditor for DEBT, or the store for EXPENSE. Null if not mentioned)
         - date: string (ISO 8601 format YYYY-MM-DD, assume today is {datetime.now().strftime('%Y-%m-%d')} if not specified)
-        - category: string (guess one: Alimentación, Transporte, Servicios, Ocio, Otros)
+        - category: string (guess one: Alimentación, Transporte, Servicios, Ocio, Nómina, Transferencia, Otros)
 
-        Return ONLY the JSON string.
+        Return ONLY the JSON object.
         """
 
         try:

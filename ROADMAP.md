@@ -1,14 +1,6 @@
-
----
-
-### **Nombre del Archivo:** `ROADMAP.md`
-**Ubicación sugerida:** Raíz del proyecto.
-
----
-
 # 🗺️ Numa: Plan Maestro de Construcción (Protocolo Nexus Roadmap)
 
-**Estado del Proyecto:** 🏗️ Fase 1 - MVP Local Real (En Progreso)
+**Estado del Proyecto:** 🏗️ Fase 2 - Implementación FIM (En Progreso)
 **Metodología:** Kybern (DBBD) + Protocolo Nexus
 **Estrategia:** Local-First → Cloud Migration
 
@@ -30,7 +22,7 @@ Este documento rastrea la evolución del sistema Numa desde su concepción lógi
 - [x] **ONBOARDING.md (Actualizado):** Guía Local-First para colaboradores.
 - [x] **ROADMAP.md (Este documento):** Plan de fases alineado con Protocolo Nexus.
 
-### 1.2. Estructura de Directorios Obligatoria
+### 1.2. Estructura de Directorios Obligatoria ✅
 - [x] **Crear `/src` como raíz del código:**
   - [x] `/src/modules/gateway/` - Orquestador de negocio
   - [x] `/src/modules/ai_brain/` - Cerebro de inferencia (Google AI)
@@ -38,15 +30,13 @@ Este documento rastrea la evolución del sistema Numa desde su concepción lógi
   - [x] `/src/core/` - Infraestructura compartida (DB, Auth, Config)
   - [x] `/src/main.py` - Punto de entrada FastAPI
 
-### 1.3. Módulo: Core (Infraestructura Compartida)
+### 1.3. Módulo: Core (Infraestructura Compartida) ✅
 - [x] **`core/config.py`:** Gestión de variables de entorno (`.env`)
 - [x] **`core/database.py`:** Conexión a SQLite local (desarrollo) con SQLAlchemy
 - [x] **`core/auth.py`:** Autenticación JWT (generación y validación de tokens)
 - [x] **Script de inicialización:** `python -m src.core.database init` para crear tablas
 
-### 1.4. Módulo: AIBrain (El Cerebro de Inferencia)
-**Responsabilidad:** Abstraer servicios de Google AI.
-
+### 1.4. Módulo: AIBrain (El Cerebro de Inferencia) ✅
 - [x] **`ai_brain/service.py` (Interfaz Pública):**
   - [x] `transcribe_audio(audio_bytes: bytes, language: str) -> str`
   - [x] `extract_transaction_data(text: str) -> TransactionData`
@@ -54,219 +44,80 @@ Este documento rastrea la evolución del sistema Numa desde su concepción lógi
   - [x] `classify_category(concept: str, merchant: str) -> str`
   - [x] `answer_query(query: str, context: dict) -> str`
 
-- [x] **`ai_brain/chirp_client.py`:** Cliente de Google Speech-to-Text v2
-  - [x] Configurar credenciales (`GOOGLE_APPLICATION_CREDENTIALS`)
-  - [x] Implementar transcripción con modelo `chirp` o `latest_long`
-  - [x] Manejo de errores (audio inaudible, formato inválido)
-
-- [x] **`ai_brain/gemini_client.py`:** Cliente de Google Gemini 1.5 Flash
-  - [x] Configurar SDK `google-generativeai`
-  - [x] Implementar extracción de datos con prompts estructurados
-  - [x] Implementar análisis multimodal (imágenes de recibos)
-  - [x] Implementar clasificación de categorías
-  - [x] Implementar respuestas conversacionales (RAG)
-
-- [x] **`ai_brain/schemas.py`:** DTOs para datos estructurados
-  - [x] `TransactionData` (amount, concept)
-  - [x] `DocumentData` (vendor, date, total_amount)
-  - [x] `CategoryData` (category, confidence)
-
-### 1.5. Módulo: FinanceCore (El Motor Contable)
-**Responsabilidad:** Lógica de negocio financiera y persistencia.
-
+### 1.5. Módulo: FinanceCore (El Motor Contable) ✅
 - [x] **`finance_core/models.py`:** Modelos SQLAlchemy
   - [x] `User` (id, email, hashed_password, created_at)
   - [x] `Transaction` (id, user_id, amount, concept, status, merchant, transaction_date, category, created_at, verified_at)
   - [x] Estados: `PROVISIONAL`, `VERIFIED`, `VERIFIED_MANUAL`
 
-- [x] **`finance_core/repository.py`:** Acceso a datos (Data Access Layer)
-  - [x] `create_transaction(user_id, amount, concept) -> Transaction`
-  - [x] `get_transaction_by_id(transaction_id, user_id) -> Transaction`
-  - [x] `update_transaction(transaction_id, data) -> Transaction`
-  - [x] `get_user_transactions(user_id, filters) -> List[Transaction]`
-  - [x] **Invariante:** Todas las consultas filtradas por `user_id`
-
-- [x] **`finance_core/service.py` (Interfaz Pública):**
-  - [x] `create_provisional_transaction(user_id, amount, concept) -> Transaction`
-  - [x] `verify_transaction_with_document(transaction_id, document_data) -> Transaction`
-  - [x] `verify_transaction_manually(transaction_id) -> Transaction`
-  - [x] `calculate_user_spending(user_id, filters) -> float`
-  - [x] `get_spending_breakdown(user_id, group_by) -> dict`
-
-- [x] **`finance_core/state_machine.py`:** Lógica de transiciones de estado
-  - [x] Validar transiciones permitidas (PROVISIONAL → VERIFIED)
-  - [x] Disparar auto-categorización al verificar
-
-### 1.6. Módulo: Gateway (El Orquestador)
-**Responsabilidad:** Exposición de API y orquestación de flujos.
-
+### 1.6. Módulo: Gateway (El Orquestador) ✅
 - [x] **`gateway/routes.py`:** Endpoints FastAPI
   - [x] `POST /api/auth/register` - Registro de usuario
   - [x] `POST /api/auth/login` - Login (devuelve JWT)
   - [x] `POST /api/transactions/voice` - Ingesta de audio
-  - [x] `POST /api/transactions/{id}/verify-document` - Verificación documental
-  - [x] `POST /api/transactions/{id}/verify-manual` - Verificación manual
-  - [x] `GET /api/transactions` - Listar transacciones del usuario
-  - [x] `POST /api/chat` - Consulta conversacional
 
-- [x] **`gateway/service.py` (Interfaz Pública):**
-  - [x] `orchestrate_voice_transaction(user_id, audio_file) -> Transaction`
-  - [x] `orchestrate_document_verification(user_id, transaction_id, document) -> Transaction`
-  - [x] `get_user_transactions(user_id, filters) -> List[Transaction]`
-  - [x] `handle_chat_query(user_id, query) -> str`
-
-- [x] **`gateway/dependencies.py`:** Dependencias FastAPI
-  - [x] `get_current_user(token: str) -> User` - Validación JWT
-
-### 1.7. Integración y Pruebas Locales
+### 1.7. Integración y Pruebas Locales ✅
 - [x] **Flujo End-to-End: Voz → Transacción**
-  - [x] Grabar audio de prueba ("Gasté 500 pesos en el super")
-  - [x] Llamar a `POST /api/transactions/voice` con el audio
-  - [x] Verificar que se crea transacción `PROVISIONAL` en BD
-  - [x] Validar que `amount=500.0` y `concept` contiene "super"
-
 - [x] **Flujo End-to-End: Documento → Verificación**
-  - [x] Subir imagen de recibo de prueba
-  - [x] Llamar a `POST /api/transactions/{id}/verify-document`
-  - [x] Verificar que estado cambia a `VERIFIED`
-  - [x] Validar que `merchant`, `transaction_date` y `category` se actualizan
-
 - [x] **Flujo End-to-End: Consulta Conversacional**
-  - [x] Llamar a `POST /api/chat` con "¿Cuánto gasté este mes?"
-  - [x] Verificar que la respuesta contiene el monto calculado por SQL
-  - [x] Validar que NO hay alucinaciones (Regla de Alucinación Cero)
-
-### 1.8. Documentación de API
-- [x] **Swagger UI:** Configurar FastAPI para exponer `/docs`
-- [x] **Ejemplos de Requests:** Agregar ejemplos en docstrings de endpoints
-- [x] **Postman Collection:** Exportar colección de pruebas
 
 ---
 
-## 📅 Fase 2: Madurez y UI (Frontend Development)
+## 📅 Fase 2: Implementación del FIM (Router Semántico)
+**Objetivo:** Evolucionar el sistema de un "registrador de gastos" a un "Director Financiero Personal" mediante un motor de intención conversacional.
+
+**Contexto:** El usuario ya no solo dicta gastos, sino que conversa. El sistema debe entender la diferencia entre "Gasté 500" (WRITE), "¿Cuánto gasté?" (READ) y "Quiero ahorrar" (PLAN).
+
+### 2.1. Refactorización del AI Brain (Semantic Router)
+- [ ] **Definir Prompt de Clasificación:** Crear prompt maestro para clasificar intents (`WRITE`, `READ`, `PLAN`, `ADVICE`, `STEER`).
+- [ ] **Implementar `classify_intent(text: str) -> IntentData`:** Nueva función en `ai_brain` que devuelve JSON con intent y entidades.
+- [ ] **Actualizar Extracción:** Adaptar la extracción de entidades para soportar ingresos y deudas, no solo gastos.
+
+### 2.2. Actualización del Finance Core (Modelo de Datos)
+- [ ] **Migración de Base de Datos:**
+    - [ ] Actualizar modelo `Transaction` para incluir campo `type` (`EXPENSE`, `INCOME`, `DEBT`).
+    - [ ] Crear migraciones (o script de alter table para SQLite).
+- [ ] **Implementar nuevas operaciones:**
+    - [ ] Soportar creación de Ingresos y Deudas.
+    - [ ] Consultas avanzadas para soportar preguntas de tipo READ.
+
+### 2.3. Orquestación en Gateway
+- [ ] **Modificar `POST /api/chat` (o endpoint unificado):**
+    - [ ] Integrar el flujo: Transcribir -> Router Semántico -> Ejecución -> Respuesta.
+- [ ] **Handlers por Intención:**
+    - [ ] `handle_write_intent`: Crea transacciones.
+    - [ ] `handle_read_intent`: Consulta BD y genera resumen.
+    - [ ] `handle_advice_intent`: Consulta LLM puro.
+
+### 2.4. Pruebas del Motor de Intención
+- [ ] **Test Set de Frases:** Validar clasificación correcta de 50 frases de prueba.
+- [ ] **Validación de Flujos:** Verificar que un "Ingreso" suma y un "Gasto" resta.
+
+---
+
+## 📅 Fase 3: Madurez y UI (Frontend Development)
 **Objetivo:** Construir la interfaz de usuario para el usuario final.
 
-**Prerequisito:** Fase 1 completada (API funcional en localhost).
+**Prerequisito:** Fase 2 completada (API Inteligente funcional).
 
-### 2.1. Definición de UX (Logic Book Update)
-- [ ] **Actualizar `LOGIC.md`:** Definir contratos de API para Frontend
-- [ ] **Wireframes Lógicos:** Definir flujos de pantalla (no diseño visual, solo lógica)
-  - [ ] Pantalla de Login/Registro
-  - [ ] Pantalla de Grabación de Voz
-  - [ ] Pantalla de Lista de Transacciones (Pendientes vs Verificadas)
-  - [ ] Pantalla de Chat Conversacional
-  - [ ] Pantalla de Reportes (Gastos por Categoría)
+### 3.1. Definición de UX
+- [ ] **Wireframes Adaptativos:** Definir cómo se ve la UI para cada intención (Tarjeta vs Chat vs Gráfica).
 
-### 2.2. Construcción del Frontend
-- [ ] **Inicializar Proyecto:** React Native / Flutter / Next.js (TBD)
-- [ ] **Componentes Core:**
-  - [ ] Grabadora de Voz (con visualización de onda)
-  - [ ] Captura de Foto/Documento
-  - [ ] Lista de Transacciones (con estados visuales)
-  - [ ] Chat UI (WebSockets o Polling)
-  - [ ] Gráficos de Gastos (Chart.js / Recharts)
-
-- [ ] **Integración con API:**
-  - [ ] Autenticación JWT (almacenar token en localStorage/SecureStorage)
-  - [ ] Llamadas a endpoints de Gateway
-  - [ ] Manejo de errores y estados de carga
-
-### 2.3. Pruebas de Usuario (Alpha Testing)
-- [ ] **Reclutamiento:** 5-10 usuarios beta
-- [ ] **Métricas de UX:**
-  - [ ] Tiempo promedio para crear transacción por voz
-  - [ ] Tasa de éxito de transcripción
-  - [ ] Satisfacción con auto-categorización
-- [ ] **Iteración:** Ajustar prompts de Gemini basado en feedback
+### 3.2. Construcción del Frontend
+- [ ] **Inicializar Proyecto:** React Native / Flutter / Next.js (TBD).
+- [ ] **Componentes Core:** Chat Interface como centro de la experiencia.
 
 ---
 
-## 📅 Fase 3: Migración a la Nube (Protocolo Nexus - Cloud Split)
+## 📅 Fase 4: Migración a la Nube (Protocolo Nexus - Cloud Split)
 **Objetivo:** Separar el monolito modular en microservicios independientes en Google Cloud Platform.
 
-**Prerequisito:** Fase 2 completada (Frontend + Backend funcional).
+### 4.1. Preparación para Migración
+- [ ] **Auditoría de Fronteras:** Verificar que NO hay importaciones cruzadas de código interno.
 
-### 3.1. Preparación para Migración
-- [ ] **Auditoría de Fronteras:** Verificar que NO hay importaciones cruzadas de código interno
-- [ ] **Refactor de Interfaces:** Asegurar que todos los módulos exponen solo `service.py`
-- [ ] **Configuración de Entornos:** Separar configs de `dev`, `staging`, `prod`
-
-### 3.2. Infraestructura como Código (Terraform)
-- [ ] **Red y Seguridad:**
-  - [ ] Definir VPC privada
-  - [ ] Configurar Cloud NAT (para salida a internet controlada)
-  - [ ] Reglas de firewall (solo Gateway es público)
-
-- [ ] **Persistencia:**
-  - [ ] Provisionar Cloud SQL (PostgreSQL)
-  - [ ] Configurar usuarios y permisos
-  - [ ] Migrar datos de SQLite local a Cloud SQL
-
-- [ ] **Registro de Contenedores:**
-  - [ ] Configurar Artifact Registry
-  - [ ] Crear repositorios para cada microservicio
-
-- [ ] **Cómputo (Cloud Run):**
-  - [ ] Servicio `gateway-service` (público)
-  - [ ] Servicio `ai-brain-service` (privado, solo accesible desde VPC)
-  - [ ] Servicio `finance-core-service` (privado, solo accesible desde VPC)
-
-### 3.3. Containerización (Docker)
-- [ ] **`gateway/Dockerfile`:** Imagen para Gateway
-- [ ] **`ai_brain/Dockerfile`:** Imagen para AIBrain
-- [ ] **`finance_core/Dockerfile`:** Imagen para FinanceCore
-- [ ] **Scripts de Build:**
-  - [ ] `build_and_push.sh` - Construir y subir imágenes a Artifact Registry
-
-### 3.4. Refactor de Comunicación (Import → HTTP)
-- [ ] **Gateway → AIBrain:**
-  ```python
-  # ANTES
-  from modules.ai_brain.service import transcribe_audio
-  text = transcribe_audio(audio_bytes)
-  
-  # DESPUÉS
-  import httpx
-  response = httpx.post("http://ai-brain-service/api/transcribe", files={"audio": audio_bytes})
-  text = response.json()["text"]
-  ```
-
-- [ ] **Gateway → FinanceCore:**
-  ```python
-  # ANTES
-  from modules.finance_core.service import create_provisional_transaction
-  transaction = create_provisional_transaction(user_id, amount, concept)
-  
-  # DESPUÉS
-  import httpx
-  response = httpx.post("http://finance-core-service/api/transactions", json={...})
-  transaction = response.json()
-  ```
-
-- [ ] **Implementar Clientes HTTP:** Abstraer llamadas en `gateway/clients/`
-
-### 3.5. Despliegue y Validación
-- [ ] **Pipeline de CI/CD:**
-  - [ ] GitHub Actions / Cloud Build
-  - [ ] Automatizar build → test → deploy
-
-- [ ] **Despliegue Inicial:**
-  - [ ] `terraform apply` para provisionar infraestructura
-  - [ ] Desplegar servicios a Cloud Run
-  - [ ] Configurar variables de entorno (secrets en Secret Manager)
-
-- [ ] **Prueba de Humo en Nube:**
-  - [ ] Validar que Gateway responde en URL pública
-  - [ ] Validar que AIBrain y FinanceCore son accesibles solo desde VPC
-  - [ ] Ejecutar flujo End-to-End en producción
-
-### 3.6. Monitoreo y Observabilidad
-- [ ] **Logging:** Cloud Logging (logs estructurados)
-- [ ] **Métricas:** Cloud Monitoring (latencia, errores, costos)
-- [ ] **Alertas:**
-  - [ ] Latencia > 10s en flujo de voz
-  - [ ] Tasa de error > 5%
-  - [ ] Costos de Gemini/Chirp > umbral mensual
+### 4.2. Infraestructura como Código (Terraform)
+- [ ] **Persistencia:** Cloud SQL.
+- [ ] **Cómputo:** Cloud Run.
 
 ---
 
@@ -274,12 +125,12 @@ Este documento rastrea la evolución del sistema Numa desde su concepción lógi
 
 | Módulo | Tipo | Ubicación | Estado Actual | Fase |
 | :--- | :--- | :--- | :--- | :--- |
-| **Core** | Infraestructura | `/src/core/` | 🔴 Pendiente | Fase 1 |
-| **AIBrain** | Módulo Nexus | `/src/modules/ai_brain/` | 🔴 Pendiente | Fase 1 |
-| **FinanceCore** | Módulo Nexus | `/src/modules/finance_core/` | 🔴 Pendiente | Fase 1 |
-| **Gateway** | Módulo Nexus | `/src/modules/gateway/` | 🔴 Pendiente | Fase 1 |
-| **Frontend** | App | TBD | ⚪ Futuro | Fase 2 |
-| **Cloud Infrastructure** | Infra | GCP | ⚪ Futuro | Fase 3 |
+| **Core** | Infraestructura | `/src/core/` | 🟢 Completado | Fase 1 |
+| **AIBrain** | Módulo Nexus | `/src/modules/ai_brain/` | 🟡 En Refactor | Fase 2 |
+| **FinanceCore** | Módulo Nexus | `/src/modules/finance_core/` | 🟡 En Refactor | Fase 2 |
+| **Gateway** | Módulo Nexus | `/src/modules/gateway/` | 🟡 En Refactor | Fase 2 |
+| **Frontend** | App | TBD | ⚪ Futuro | Fase 3 |
+| **Cloud Infrastructure** | Infra | GCP | ⚪ Futuro | Fase 4 |
 
 **Leyenda:**
 - 🔴 Pendiente
@@ -289,64 +140,15 @@ Este documento rastrea la evolución del sistema Numa desde su concepción lógi
 
 ---
 
-## 🧪 Estrategia de Pruebas
-
-### Fase 1 (Local):
-1.  **Unitarias:** Pruebas de lógica de negocio en cada módulo (mockeando dependencias externas)
-2.  **Integración:** Pruebas de flujos completos llamando a APIs reales de Google
-3.  **End-to-End:** Pruebas del flujo completo `Audio → Transacción → BD`
-
-### Fase 2 (Frontend):
-1.  **Componentes:** Pruebas de componentes UI (Jest/React Testing Library)
-2.  **Integración:** Pruebas de integración Frontend ↔ Backend
-3.  **E2E:** Pruebas de flujos de usuario (Cypress/Playwright)
-
-### Fase 3 (Cloud):
-1.  **Smoke Tests:** Validar que servicios responden en producción
-2.  **Load Testing:** Simular carga (100 requests/min) para validar auto-scaling
-3.  **Chaos Engineering:** Simular fallos de servicios para validar resiliencia
-
----
-
 ## 🎯 Métricas de Éxito
 
-### Fase 1 (MVP Local):
-- ✅ Flujo de voz funcional en < 8 segundos (P95)
-- ✅ Precisión de transcripción > 90%
-- ✅ Precisión de extracción de datos > 85%
-- ✅ Cero alucinaciones en consultas deterministas
-
-### Fase 2 (UI):
-- ✅ Tiempo de onboarding < 2 minutos
-- ✅ Tasa de retención (7 días) > 40%
-- ✅ NPS (Net Promoter Score) > 50
-
-### Fase 3 (Cloud):
-- ✅ Uptime > 99.5%
-- ✅ Latencia P95 < 10 segundos
-- ✅ Costo por transacción < $0.05 USD
+### Fase 2 (FIM):
+- ✅ Precisión de clasificación de intención > 95%
+- ✅ Latencia del Router Semántico < 500ms
+- ✅ Soporte correcto de Ingresos y Gastos
 
 ---
 
-## 📝 ¿Cómo usar este documento?
-
-1.  **Planificación:** Antes de iniciar un Sprint, revisa qué casillas tocan marcar en la fase actual.
-2.  **Ejecución:** Usa los prompts para instruir al Agente Antigravity sobre la tarea específica (ej. "Implementa el módulo AIBrain según Fase 1.4 del Roadmap").
-3.  **Seguimiento:** Al terminar una tarea, actualiza este archivo con `[x]`.
-4.  **Revisión:** Al completar una fase, revisa que todas las casillas estén marcadas antes de avanzar.
-
----
-
-## 🚀 Mantra del Protocolo Nexus
-
-> **"Módulos soberanos hoy, Microservicios mañana. Las fronteras son sagradas."**
-
-La arquitectura de hoy es la de producción. Solo cambia el transporte.
-
----
-
-**Versión:** 2.0 (Protocolo Nexus Edition)  
-**Última Actualización:** 2025-12-21  
+**Versión:** 3.0 (Kybern FIM Standard)
+**Última Actualización:** 2025-12-22
 **Estado:** Activo y Vinculante
-
----

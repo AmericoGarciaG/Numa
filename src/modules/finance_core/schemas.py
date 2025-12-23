@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr
 
-from src.modules.finance_core.models import TransactionStatus
+from src.modules.finance_core.models import TransactionStatus, TransactionType
 
 
 # User schemas
@@ -79,6 +79,7 @@ class TransactionCreate(TransactionBase):
 
     user_id: int
     status: TransactionStatus = TransactionStatus.PROVISIONAL
+    type: TransactionType = TransactionType.EXPENSE
 
 
 class TransactionUpdate(BaseModel):
@@ -99,6 +100,7 @@ class Transaction(TransactionBase):
     id: int
     user_id: int
     status: TransactionStatus
+    type: TransactionType
     merchant: Optional[str] = None
     transaction_date: Optional[datetime] = None
     transaction_time: Optional[str] = None

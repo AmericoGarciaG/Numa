@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from src.modules.ai_brain import transcriber, reasoning, service as ai_brain_service
 # We validly import finance_core
 from src.modules.finance_core import service as finance_core
+from src.modules.finance_core.models import TransactionType
 
 
 # ============================================================================
@@ -69,6 +70,7 @@ async def orchestrate_voice_transaction(
                 user_id=user_id,
                 amount=extracted_data.get("amount", 0.0),
                 concept=extracted_data.get("concept", "Gasto de voz"),
+                transaction_type=TransactionType[extracted_data.get("type", "EXPENSE").upper()],
                 category=extracted_data.get("category"),
                 merchant=extracted_data.get("merchant"),
                 transaction_date=extracted_data.get("date")

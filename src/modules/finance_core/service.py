@@ -14,7 +14,7 @@ from fastapi import HTTPException
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
-from src.modules.finance_core.models import Transaction, TransactionStatus, User
+from src.modules.finance_core.models import Transaction, TransactionStatus, User, TransactionType
 from src.modules.finance_core import schemas
 from src.core import auth
 

@@ -1,9 +1,9 @@
 # Numa - Logic Book
 ## Arquitectura de Finanzas Soberanas (Protocolo Nexus)
 
-**Versión:** 2.0 (Google Cloud Stack)
+**Versión:** 3.0 (Kybern FIM Standard)
 **Estado:** Activo
-**Misión:** Asistente financiero Cero-Fricción potenciado por Google Cloud AI.
+**Misión:** Actuar como un Director Financiero Personal (CFO) que interpreta el diálogo financiero del usuario para registrar, consultar, planificar y aconsejar, manteniendo la soberanía de los datos.
 
 ---
 
@@ -16,7 +16,7 @@ El sistema opera como un **Monolito Modular** en desarrollo local, diseñado par
     *   Punto de entrada HTTP (FastAPI).
     *   Gestiona autenticación y enruta peticiones a los módulos internos.
 2.  **Finance Core (`src/modules/finance_core`):**
-    *   Dueño de los datos (Usuarios, Transacciones).
+    *   Dueño de los datos (Usuarios, Transacciones, Cuentas, Metas).
     *   Gestiona la base de datos (SQLite local / Cloud SQL prod).
 3.  **AI Brain (`src/modules/ai_brain`):**
     *   El conector con la inteligencia de Google.
@@ -26,71 +26,136 @@ El sistema opera como un **Monolito Modular** en desarrollo local, diseñado par
 
 ## PARTE II: Contratos de Lógica de Negocio
 
-### Capítulo 2: Flujo de Ingesta por Voz (The Nexus Flow)
+### Capítulo 2: El Motor de Intención Financiera (FIM)
 
-#### 2.1. Entrada
-*   El usuario sube un archivo de audio al endpoint `/transactions/voice`.
+El sistema evoluciona de un simple receptor de comandos a un motor conversacional capaz de entender el contexto y la intención del usuario.
 
-#### 2.2. Proceso de Transcripción (Google Chirp V2)
-*   **Actor:** `AI Brain`.
-*   **Acción:** Envía el audio crudo a la API **Google Cloud Speech-to-Text v2**.
-*   **Modelo:** Se utiliza el modelo **`latest_long`** (Reconocedor V2) para soporte óptimo de español de México (`es-MX`). El modelo "chirp" puede estar restringido por regiones.
-*   **Salida:** Texto literal (String).
+#### 2.1. Taxonomía de Intenciones
+El sistema debe clasificar cualquier entrada del usuario en una de las siguientes 5 intenciones principales:
 
-#### 2.3. Proceso de Razonamiento (Google Vertex AI)
-*   **Actor:** `AI Brain`.
-*   **Acción:** Envía el texto transcrito al modelo **Gemini 2.0 Flash Experimental** (`gemini-2.0-flash-exp`) a través de Vertex AI.
-*   **Prompt del Sistema:** "Eres un experto financiero. Extrae entidades en JSON estricto: `{amount, concept, merchant, date, category}`".
-*   **Nota Técnica:** Se prefiere Vertex AI sobre AI Studio (`google.generativeai`) para compatibilidad robusta con cuentas de servicio.
-*   **Salida:** Objeto JSON validado.
+1.  **Registro (Write/Log):**
+    *   **Definición:** Declarar un hecho financiero que altera el estado del balance.
+    *   **Ejemplos:** "Gasté 500 en comida", "Me pagaron la quincena", "Le debo 200 a Juan".
+    *   **Subtipos:** Gasto, Ingreso, Deuda.
 
-#### 2.4. Persistencia
-*   **Actor:** `Finance Core`.
-*   **Acción:** Recibe el JSON del `AI Brain`.
-*   **Regla:** Crea una transacción con estado **`PROVISIONAL`**.
-*   **Mejora de Inteligencia:** Si el modelo detecta `merchant` (Comercio), `category` (Categoría) o `date` con confianza, **ESTOS DATOS SE PERSISTEN** inmediatamente en el registro provisional. No se deben descartar.
-*   **Validación:** El `amount` es estricamente obligatorio. Si no existe, se marca error o se requiere intervención manual.
+2.  **Consulta (Read/Query):**
+    *   **Definición:** Pedir información del estado financiero actual o histórico.
+    *   **Ejemplos:** "¿Cuánto he gastado hoy?", "¿Tengo dinero para salir?", "Dame mi balance del mes".
+    *   **Salida:** Reportes, agregaciones, listas filtradas.
+
+3.  **Planificación (Strategy/Future):**
+    *   **Definición:** Definir una meta, presupuesto o intención a futuro.
+    *   **Ejemplos:** "Quiero ahorrar para un viaje", "Avísame si gasto más de 1000 en Uber", "Crea un presupuesto de comida".
+
+4.  **Consultoría (Reasoning/Advice):**
+    *   **Definición:** Buscar sabiduría, análisis complejo o recomendaciones.
+    *   **Ejemplos:** "¿Debería comprar esto?", "¿Cómo puedo ahorrar más?", "Analiza mis gastos hormiga".
+
+5.  **Redirección (Steering):**
+    *   **Definición:** Pivotar conversaciones no financieras hacia el dominio financiero o manejar saludos/errores.
+    *   **Ejemplos:** "Hola", "¿Quién eres?", "Cuéntame un chiste" (Redirigir a finanzas).
+
+#### 2.2. Flujo de Procesamiento Lógico
+Todo input (Voz o Texto) sigue este flujo orquestado:
+
+1.  **Escucha (Ingesta):**
+    *   Recepción de Audio (Whisper/Chirp) o Texto directo.
+    *   Normalización de entrada.
+
+2.  **Router Semántico (Clasificación):**
+    *   **Actor:** `AI Brain`.
+    *   **Acción:** Analiza el texto para determinar la `intent` (Taxonomía 2.1) y extraer `entities` relevantes.
+    *   **Contrato de Salida (JSON):**
+        ```json
+        {
+          "intent": "WRITE_LOG",
+          "sub_intent": "EXPENSE",
+          "entities": { ... },
+          "confidence": 0.98
+        }
+        ```
+
+3.  **Ejecución Especializada (Routing):**
+    *   **Actor:** `API Gateway` (Orquestador).
+    *   **Acción:** Basado en el `intent`, despacha la petición al servicio correcto:
+        *   `WRITE` -> `Finance Core` (Crear Transacción).
+        *   `READ` -> `Finance Core` (Query SQL) + `AI Brain` (Resumen natural).
+        *   `ADVICE` -> `AI Brain` (RAG + Razonamiento).
+
+4.  **Síntesis (Respuesta):**
+    *   Generación de respuesta final al usuario (Texto + UI Data).
+    *   Feedback visual acorde a la intención (ej. Tarjeta de Gasto vs. Gráfica de Reporte).
 
 ---
 
-## PARTE III: Requerimientos No Funcionales (NFRs)
+## PARTE III: Modelo de Datos (Finance Core)
 
-### Capítulo 3: Operación Local y Costos
+### Capítulo 3: Modelo de Dominio Financiero
+
+El modelo de datos se expande para soportar una visión 360° de las finanzas personales.
+
+#### 3.1. Entidad `Transaction` (Actualizada)
+Representa un movimiento atómico de dinero.
+
+*   `id`: UUID
+*   `user_id`: UUID (FK)
+*   `type`: Enum (`EXPENSE`, `INCOME`, `DEBT`) **[NUEVO]**
+*   `amount`: Decimal
+*   `concept`: String
+*   `category`: String
+*   `merchant`: String (Opcional)
+*   `status`: Enum (`PROVISIONAL`, `VERIFIED`)
+*   `transaction_date`: DateTime
+*   `created_at`: DateTime
+
+#### 3.2. Entidad `Account` (Placeholder)
+Representa un contenedor de valor.
+
+*   `id`: UUID
+*   `name`: String (ej. "Banamex Débito", "Efectivo", "AMEX")
+*   `type`: Enum (`BANK`, `CASH`, `CREDIT`, `INVESTMENT`)
+*   `currency`: String (default: MXN)
+*   `current_balance`: Decimal
+
+#### 3.3. Entidad `Goal` (Placeholder)
+Representa un objetivo financiero o sobre de presupuesto.
+
+*   `id`: UUID
+*   `name`: String (ej. "Viaje a Japón", "Fondo de Emergencia")
+*   `target_amount`: Decimal
+*   `current_amount`: Decimal
+*   `deadline`: Date (Opcional)
+*   `status`: Enum (`ACTIVE`, `COMPLETED`, `PAUSED`)
+
+---
+
+## PARTE IV: Requerimientos No Funcionales (NFRs)
+
+### Capítulo 4: Operación Local y Costos
 
 1.  **Credenciales:** El sistema debe fallar elegantemente ("Fail Fast") si la variable `GOOGLE_APPLICATION_CREDENTIALS` no apunta a un archivo JSON válido.
-2.  **Latencia:** La transcripción y extracción combinadas no deben exceder los 10 segundos para audios cortos (< 30s).
-3.  **Costos:** El uso de modelos "Flash" y "Chirp" debe priorizarse para mantener el consumo dentro de la capa gratuita o de bajo costo de GCP durante el desarrollo.
+2.  **Latencia:** La clasificación de intención debe ser < 500ms. La transcripción y ejecución total < 5s para mantener fluidez conversacional.
+3.  **Costos:** El uso de modelos "Flash" y "Chirp" debe priorizarse.
 
 ---
 
-## PARTE IV: Contrato de Interfaz de Usuario (Web Client)
+## PARTE V: Contrato de Interfaz de Usuario (Web Client)
 
-### Capítulo 4: Flujo de Interacción del Usuario
+### Capítulo 5: Flujo de Interacción del Usuario
 Para el MVP (Fase 2), la interfaz es una **Web App Ligera** servida por el mismo backend.
 
-#### 4.1. Flujo de Captura de Voz
+#### 5.1. Flujo de Captura de Voz
 La interacción principal ("Hoyo en Uno") debe ser extremadamente fluida:
 
 1.  **Estado Inicial (Ready):**
-    *   Botón de micrófono prominente y central.
-    *   Texto auxiliar: "Presiona para registrar un gasto".
+    *   Botón de micrófono prominente.
 2.  **Estado Grabando (Recording):**
-    *   Feedback visual claro (onda de audio o pulsación roja).
-    *   La captura de audio sucede en el navegador usando **MediaRecorder API**.
-    *   Botón cambia a acción "Detener / Enviar".
+    *   Feedback visual claro.
 3.  **Estado Procesando (Processing):**
-    *   **Bloqueo de UI:** El usuario no debe poder grabar otra vez mientras se procesa.
-    *   **Feedback de Progreso:** Mostrar mensajes de estado derivados de la latencia esperada:
-        *   "Enviando audio..." -> "Transcribiendo (Google Chirp)..." -> "Analizando (Gemini)..."
+    *   Feedback de Progreso: "Escuchando..." -> "Entendiendo intención..." -> "Ejecutando..."
 
-#### 4.2. Visualización de Resultados
-Cuando el backend responde con **201 Created**:
-*   **NO mostrar JSON crudo.**
-*   Renderizar una **"Tarjeta de Transacción"** o notificación temporal con:
-    *   **Concepto:** Título principal (ej. "Cena").
-    *   **Monto:** Destacado grande (ej. "$350.00").
-    *   **Categoría:** Badge/Etiqueta de color (ej. "Alimentación").
-    *   **Fecha:** Discreta (ej. "Hoy").
-
-#### 4.3. Reporte en Tiempo Real
-*   **Auto-Refresh:** Inmediatamente después de una inserción exitosa, la UI debe consultar el endpoint `GET /api/transactions` (o actualizar su estado local) para reflejar el nuevo gasto en la lista histórica / dashboard sin que el usuario recargue la página.
+#### 5.2. Respuesta Adaptativa
+La UI debe adaptarse a la intención detectada:
+*   **Intención WRITE:** Mostrar tarjeta de confirmación de transacción.
+*   **Intención READ:** Mostrar dato solicitado (ej. "Gastaste $500") + Gráfica opcional.
+*   **Intención ADVICE:** Mostrar respuesta de texto en formato chat.

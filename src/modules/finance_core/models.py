@@ -25,6 +25,12 @@ class TransactionStatus(enum.Enum):
     VERIFIED_MANUAL = "verified_manual"
 
 
+class TransactionType(enum.Enum):
+    EXPENSE = "expense"
+    INCOME = "income"
+    DEBT = "debt"
+
+
 class User(Base):
     """User entity - represents the owner of financial data.
 
@@ -62,6 +68,7 @@ class Transaction(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     # Core transaction data
+    type = Column(Enum(TransactionType), nullable=False, default=TransactionType.EXPENSE)
     amount = Column(Float, nullable=False)
     concept = Column(String, nullable=False)  # Description from voice command
 
