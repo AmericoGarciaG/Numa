@@ -163,6 +163,29 @@ class ChatResponse(BaseModel):
     transaction_count: Optional[int] = None
 
 
+class DailySummaryEntry(BaseModel):
+    """Entry for daily summary totals."""
+
+    total: float
+    count: int
+
+
+class DailySummaryStatus(BaseModel):
+    """Aggregated daily summary by transaction type for a given status."""
+
+    income: DailySummaryEntry
+    expense: DailySummaryEntry
+    debt: DailySummaryEntry
+
+
+class DailySummary(BaseModel):
+    """Complete daily summary response schema."""
+
+    date: str
+    validated: DailySummaryStatus
+    provisional: DailySummaryStatus
+
+
 # Authentication Schemas
 class Token(BaseModel):
     access_token: str

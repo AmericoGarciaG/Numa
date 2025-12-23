@@ -106,6 +106,9 @@ def create_provisional_transaction(
     Returns:
         Transaction: The newly created provisional transaction
     """
+    if amount == 0:
+        raise ValueError("El monto de la transacción debe ser distinto de cero.")
+
     transaction = Transaction(
         user_id=user_id,
         amount=amount,
@@ -517,4 +520,57 @@ def get_pending_balance(db: Session, user_id: int) -> dict:
     return {
         "total": float(total),
         "count": count,
+    }
+
+
+def get_daily_summary(
+    db: Session, user_id: int, target_date: Optional[datetime] = None
+) -> dict:
+    if target_date is None:
+        now = datetime.utcnow()
+    else:
+        now = target_date
+
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_day = start_of_day + timedelta(days=1)
+
+    base_query = db.query(Transaction).filter(
+        Transaction.user_id == user_id,
+        Transaction.created_at >= start_of_day,
+        Transaction.created_at < end_of_day,
+    )
+
+    validated_query = base_query.filter(
+        Transaction.status.in_(
+            [
+                TransactionStatus.VERIFIED,
+                TransactionStatus.VERIFIED_MANUAL,
+            ]
+        )
+    )
+    provisional_query = base_query.filter(
+        Transaction.status == TransactionStatus.PROVISIONAL
+    )
+
+    def aggregate(query, tx_type: TransactionType) -> dict:
+        q = query.filter(Transaction.type == tx_type)
+        total = q.with_entities(func.sum(Transaction.amount)).scalar() or 0.0
+        count = q.count()
+        return {
+            "total": float(total),
+            "count": count,
+        }
+
+    return {
+        "date": start_of_day.date().isoformat(),
+        "validated": {
+            "income": aggregate(validated_query, TransactionType.INCOME),
+            "expense": aggregate(validated_query, TransactionType.EXPENSE),
+            "debt": aggregate(validated_query, TransactionType.DEBT),
+        },
+        "provisional": {
+            "income": aggregate(provisional_query, TransactionType.INCOME),
+            "expense": aggregate(provisional_query, TransactionType.EXPENSE),
+            "debt": aggregate(provisional_query, TransactionType.DEBT),
+        },
     }

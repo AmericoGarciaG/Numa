@@ -209,6 +209,14 @@ def get_transactions(
     return finance_service.get_user_transactions(db=db, user_id=current_user.id)
 
 
+@router.get("/transactions/daily_summary", response_model=schemas.DailySummary)
+def get_daily_summary(
+    current_user=Depends(get_current_user), db: Session = Depends(database.get_db)
+):
+    """Get daily summary for the current user."""
+    return finance_service.get_daily_summary(db=db, user_id=current_user.id)
+
+
 # ============================================================================
 # CHAT ENDPOINT (Protected)
 # ============================================================================

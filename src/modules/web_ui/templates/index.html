@@ -88,7 +88,17 @@
                         <option value="" disabled selected>Cargando micrófonos...</option>
                     </select>
                 </div>
-                
+
+                <div class="flex items-center justify-center gap-2 mb-2">
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="push-to-talk-toggle" class="sr-only peer" checked>
+                        <div
+                            class="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600">
+                        </div>
+                        <span class="ml-2 text-xs text-slate-500 font-medium">Modo Hold-to-Talk</span>
+                    </label>
+                </div>
+
                 <!-- Mic Button -->
                 <button id="mic-btn"
                     class="mic-button w-24 h-24 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -96,9 +106,50 @@
                 </button>
             </div>
 
+            <!-- Teleprompter / Chat Area -->
+            <div id="chat-container" class="w-full max-w-md bg-white rounded-xl shadow-sm border border-slate-100 p-4 min-h-[80px] flex flex-col gap-2 mb-6 hidden">
+                <div class="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    <i class="fa-solid fa-robot"></i> Numa
+                </div>
+                <p id="chat-message" class="text-sm text-slate-600 leading-relaxed">
+                    <!-- Los mensajes del sistema aparecerán aquí -->
+                </p>
+            </div>
+
             <div class="text-center h-12">
                 <p id="status-text" class="text-lg font-medium text-slate-700">Presiona para hablar</p>
                 <p id="sub-status" class="text-sm text-slate-400">Registra un gasto con tu voz</p>
+            </div>
+        </div>
+
+        <div class="w-full">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider">Resumen diario</h2>
+                <span id="daily-date" class="text-xs text-slate-400">Hoy</span>
+            </div>
+            <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-4 grid grid-cols-2 gap-4">
+                <div>
+                    <p class="text-xs font-semibold text-slate-400 uppercase">Ingresos</p>
+                    <div class="mt-1">
+                        <p class="text-[11px] text-slate-400">Validados</p>
+                        <p id="daily-income-validated" class="text-sm font-semibold text-emerald-600">$0.00</p>
+                    </div>
+                    <div class="mt-2">
+                        <p class="text-[11px] text-slate-400">Pendientes</p>
+                        <p id="daily-income-provisional" class="text-sm font-semibold text-amber-600">$0.00</p>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-xs font-semibold text-slate-400 uppercase">Gastos</p>
+                    <div class="mt-1">
+                        <p class="text-[11px] text-slate-400">Validados</p>
+                        <p id="daily-expense-validated" class="text-sm font-semibold text-rose-600">$0.00</p>
+                    </div>
+                    <div class="mt-2">
+                        <p class="text-[11px] text-slate-400">Pendientes</p>
+                        <p id="daily-expense-provisional" class="text-sm font-semibold text-amber-600">$0.00</p>
+                    </div>
+                </div>
             </div>
         </div>
 

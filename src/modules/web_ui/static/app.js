@@ -8,6 +8,8 @@ const API_BASE = '/api';
 const app = {
     state: {
         isRecording: false,
+        selectedDeviceId: null,
+        isPushToTalk: true,
         token: null,
         mediaRecorder: null,
         audioChunks: [],
@@ -22,6 +24,14 @@ const app = {
         connectionStatus: document.getElementById('connection-status'),
         resultCard: document.getElementById('result-card'),
         transactionList: document.getElementById('transaction-list'),
+        dailyDate: document.getElementById('daily-date'),
+        dailyIncomeValidated: document.getElementById('daily-income-validated'),
+        dailyIncomeProvisional: document.getElementById('daily-income-provisional'),
+        dailyExpenseValidated: document.getElementById('daily-expense-validated'),
+        dailyExpenseProvisional: document.getElementById('daily-expense-provisional'),
+        pushToTalkToggle: document.getElementById('push-to-talk-toggle'),
+        chatContainer: document.getElementById('chat-container'),
+        chatMessage: document.getElementById('chat-message'),
 
         // Card fields
         cardAmount: document.getElementById('card-amount'),
@@ -52,12 +62,94 @@ const app = {
         }
 
         // 3. Setup Listeners
-        this.elements.micBtn.addEventListener('click', () => this.toggleRecording());
+        if (this.elements.micSelect) {
+            this.elements.micSelect.addEventListener('change', (event) => {
+                this.state.selectedDeviceId = event.target.value;
+            });
+        }
+
+        if (this.elements.pushToTalkToggle) {
+            this.state.isPushToTalk = this.elements.pushToTalkToggle.checked;
+            this.updatePushToTalkUI();
+            this.elements.pushToTalkToggle.addEventListener('change', (event) => {
+                this.state.isPushToTalk = event.target.checked;
+                this.updatePushToTalkUI();
+            });
+        }
+
+        if (this.elements.micBtn) {
+            this.elements.micBtn.addEventListener('click', () => {
+                if (this.state.isPushToTalk) {
+                    return;
+                }
+                this.toggleRecording();
+            });
+
+            this.elements.micBtn.addEventListener('mousedown', () => {
+                if (!this.state.isPushToTalk) {
+                    return;
+                }
+                if (!this.state.isRecording) {
+                    this.startRecording();
+                }
+            });
+
+            this.elements.micBtn.addEventListener('mouseup', () => {
+                if (!this.state.isPushToTalk) {
+                    return;
+                }
+                if (this.state.isRecording) {
+                    this.stopRecording();
+                }
+            });
+
+            this.elements.micBtn.addEventListener('mouseleave', () => {
+                if (!this.state.isPushToTalk) {
+                    return;
+                }
+                if (this.state.isRecording) {
+                    this.stopRecording();
+                }
+            });
+
+            this.elements.micBtn.addEventListener('touchstart', (event) => {
+                if (!this.state.isPushToTalk) {
+                    return;
+                }
+                event.preventDefault();
+                if (!this.state.isRecording) {
+                    this.startRecording();
+                }
+            });
+
+            this.elements.micBtn.addEventListener('touchend', (event) => {
+                if (!this.state.isPushToTalk) {
+                    return;
+                }
+                event.preventDefault();
+                if (this.state.isRecording) {
+                    this.stopRecording();
+                }
+            });
+
+            this.elements.micBtn.addEventListener('touchcancel', (event) => {
+                if (!this.state.isPushToTalk) {
+                    return;
+                }
+                event.preventDefault();
+                if (this.state.isRecording) {
+                    this.stopRecording();
+                }
+            });
+        }
 
         // 4. Initial Load
         if (this.state.token) {
             this.refreshTransactions();
+            this.refreshDailySummary();
         }
+
+        this.showSystemMessage("Hola, soy Numa. ¿Qué gastos registramos hoy?");
     },
     
     loadAudioDevices: async function() {
@@ -70,7 +162,7 @@ const app = {
              const audioInputs = devices.filter(device => device.kind === 'audioinput');
              
              const select = this.elements.micSelect;
-             select.innerHTML = ''; // Clear existing
+             select.innerHTML = '';
              
              if (audioInputs.length === 0) {
                  const option = document.createElement('option');
@@ -79,15 +171,27 @@ const app = {
                  return;
              }
              
-             audioInputs.forEach(device => {
+             const availableIds = audioInputs.map(device => device.deviceId);
+             let selectedId = this.state.selectedDeviceId;
+
+             if (!selectedId || !availableIds.includes(selectedId)) {
+                 const defaultDevice = audioInputs.find(device => device.deviceId === 'default');
+                 if (defaultDevice) {
+                     selectedId = defaultDevice.deviceId;
+                 } else {
+                     selectedId = audioInputs[0].deviceId;
+                 }
+             }
+             
+             audioInputs.forEach((device, index) => {
                  const option = document.createElement('option');
                  option.value = device.deviceId;
-                 option.text = device.label || `Micrófono ${select.length + 1}`;
+                 option.text = device.label || `Micrófono ${index + 1}`;
                  select.add(option);
              });
              
-             // Select default if exists, else first
-             // Browser handles default logic usually, but we can be explicit
+             select.value = selectedId;
+             this.state.selectedDeviceId = selectedId;
              
         } catch (err) {
             console.warn("Error loading audio devices:", err);
@@ -144,7 +248,7 @@ const app = {
 
     startRecording: async function () {
         try {
-            const selectedMicId = this.elements.micSelect.value;
+            const selectedMicId = this.state.selectedDeviceId || this.elements.micSelect.value;
             const constraints = { 
                 audio: selectedMicId ? { deviceId: { exact: selectedMicId } } : true 
             };
@@ -241,6 +345,7 @@ const app = {
                 const transactions = Array.isArray(data) ? data : [data];
                 this.showSuccess(transactions);
                 this.refreshTransactions();
+                this.refreshDailySummary();
             } else {
                 const err = await response.text();
                 throw new Error(err);
@@ -302,6 +407,72 @@ const app = {
         }
     },
 
+    refreshDailySummary: async function () {
+        if (!this.state.token) return;
+
+        try {
+            const response = await fetch(`${API_BASE}/transactions/daily_summary`, {
+                headers: { 'Authorization': `Bearer ${this.state.token}` }
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+            this.renderDailySummary(data);
+        } catch (error) {
+            console.error("Daily summary error:", error);
+        }
+    },
+
+    renderDailySummary: function (summary) {
+        if (!summary) return;
+
+        const formatAmount = (value) => {
+            const number = typeof value === 'number' ? value : 0;
+            return `$${number.toFixed(2)}`;
+        };
+
+        if (this.elements.dailyDate && summary.date) {
+            try {
+                const date = new Date(summary.date);
+                this.elements.dailyDate.textContent = date.toLocaleDateString();
+            } catch (e) {
+                this.elements.dailyDate.textContent = summary.date;
+            }
+        }
+
+        const validated = summary.validated || {};
+        const provisional = summary.provisional || {};
+
+        const incomeValidated = validated.income || {};
+        const expenseValidated = validated.expense || {};
+        const incomeProvisional = provisional.income || {};
+        const expenseProvisional = provisional.expense || {};
+
+        if (this.elements.dailyIncomeValidated) {
+            this.elements.dailyIncomeValidated.textContent = formatAmount(
+                incomeValidated.total || 0
+            );
+        }
+        if (this.elements.dailyIncomeProvisional) {
+            this.elements.dailyIncomeProvisional.textContent = formatAmount(
+                incomeProvisional.total || 0
+            );
+        }
+        if (this.elements.dailyExpenseValidated) {
+            this.elements.dailyExpenseValidated.textContent = formatAmount(
+                expenseValidated.total || 0
+            );
+        }
+        if (this.elements.dailyExpenseProvisional) {
+            this.elements.dailyExpenseProvisional.textContent = formatAmount(
+                expenseProvisional.total || 0
+            );
+        }
+    },
+
     renderTable: function (transactions) {
         const tbody = this.elements.transactionList;
         tbody.innerHTML = '';
@@ -357,6 +528,21 @@ const app = {
     },
 
     // Helpers
+    updatePushToTalkUI: function () {
+        const input = this.elements.pushToTalkToggle;
+        if (!input) return;
+        this.state.isPushToTalk = input.checked;
+    },
+
+    showSystemMessage: function (text) {
+        const container = this.elements.chatContainer;
+        const message = this.elements.chatMessage;
+        if (container && message) {
+            message.textContent = text;
+            container.classList.remove('hidden');
+        }
+    },
+
     updateStatus: function (main, sub) {
         this.elements.statusText.textContent = main;
         if (sub) this.elements.subStatus.textContent = sub;
