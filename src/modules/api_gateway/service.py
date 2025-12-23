@@ -45,15 +45,43 @@ async def orchestrate_voice_transaction(
     """
     # Step 1: Transcribe audio using AIBrain (Real Chirp)
     audio_bytes = await audio_file.read()
+    print(f"DEBUG: Received audio bytes: {len(audio_bytes)}")
     
     try:
         transcribed_text = await transcriber.transcribe_audio(audio_bytes, language="es-MX")
-        print(f"DEBUG: Transcribed text: {transcribed_text}")
+        print(f"DEBUG: STT Result: '{transcribed_text}'")
     except Exception as e:
-        raise ValueError(f"Transcription failed: {str(e)}")
-    
+        print(f"ERROR: STT Failed: {e}")
+        transcribed_text = ""
+
+    # Fallback to Gemini Multimodal if STT fails or returns empty
     if not transcribed_text:
-        raise ValueError("Audio transcription yielded empty text.")
+        print("[WARN] Transcription failed/empty. Attempting Gemini Multimodal Fallback...")
+        # from src.modules.ai_brain import reasoning # reasoning is already imported
+        try:
+             # Use the new direct audio analysis method
+             extracted_data = await reasoning.analyze_audio_direct(audio_bytes)
+             print(f"DEBUG: Gemini Fallback Success: {extracted_data}")
+             
+             # Create transaction directly from Gemini data
+             return finance_core.create_provisional_transaction(
+                db=db,
+                user_id=user_id,
+                amount=extracted_data.get("amount", 0.0),
+                concept=extracted_data.get("concept", "Gasto de voz"),
+                category=extracted_data.get("category"),
+                merchant=extracted_data.get("merchant"),
+                transaction_date=extracted_data.get("date")
+             )
+        except Exception as gemini_err:
+             print(f"ERROR: Gemini Fallback Failed: {gemini_err}")
+             raise ValueError("No se pudo entender el audio (STT vacío y Gemini falló). Intenta hablar más claro.")
+
+    # Standard Flow (if STT worked)
+    print(f"DEBUG: Transcribed text: {transcribed_text}")
+    # If we somehow got here with empty text and missed fallback
+    if not transcribed_text:
+         raise ValueError("Audio transcription yielded empty text.")
 
     # Step 2: Extract transaction data using AIBrain (Real Gemini)
     try:

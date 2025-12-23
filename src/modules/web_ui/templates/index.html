@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Numa AI - Protocolo Nexus</title>
+    <!-- TailwindCSS v3 (CDN for prototyping) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .mic-button {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .mic-button.recording {
+            animation: pulse-red 2s infinite;
+            background-color: #ef4444;
+            /* red-500 */
+            transform: scale(1.1);
+        }
+
+        @keyframes pulse-red {
+            0% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 20px rgba(239, 68, 68, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+
+        /* Hide scrollbar for cleaner look */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col items-center">
+
+    <!-- Header -->
+    <header class="w-full bg-white shadow-sm py-4 px-6 flex justify-between items-center z-10">
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">N</div>
+            <h1 class="text-xl font-bold text-slate-800 tracking-tight">Numa Audio</h1>
+        </div>
+        <div id="connection-status" class="text-xs font-medium px-2 py-1 rounded bg-slate-100 text-slate-400">
+            Connecting...
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 w-full max-w-md flex flex-col items-center p-6 gap-8 overflow-y-auto">
+
+        <!-- Hero / Mic Section -->
+        <div class="flex flex-col items-center gap-6 mt-4">
+            <div class="relative group">
+                <!-- Mic Selection -->
+                <div class="mb-4 w-full max-w-xs">
+                    <label for="mic-select" class="sr-only">Seleccionar Micrófono</label>
+                    <select id="mic-select" class="w-full text-xs bg-white border border-slate-200 text-slate-600 rounded-md px-2 py-1 focus:outline-none focus:border-blue-500 shadow-sm">
+                        <option value="" disabled selected>Cargando micrófonos...</option>
+                    </select>
+                </div>
+                
+                <!-- Mic Button -->
+                <button id="mic-btn"
+                    class="mic-button w-24 h-24 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="fa-solid fa-microphone text-3xl"></i>
+                </button>
+            </div>
+
+            <div class="text-center h-12">
+                <p id="status-text" class="text-lg font-medium text-slate-700">Presiona para hablar</p>
+                <p id="sub-status" class="text-sm text-slate-400">Registra un gasto con tu voz</p>
+            </div>
+        </div>
+
+        <!-- Result Card (Hidden by default) -->
+        <div id="result-card"
+            class="w-full bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden hidden transform transition-all duration-500 ease-out translate-y-4 opacity-0">
+            <div class="bg-green-50 px-4 py-2 border-b border-green-100 flex justify-between items-center">
+                <span class="text-green-700 text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+                    <i class="fa-solid fa-check-circle"></i> Guardado
+                </span>
+                <span id="card-date" class="text-green-600 text-xs">Hoy</span>
+            </div>
+            <div class="p-5">
+                <h3 id="card-concept" class="text-lg font-semibold text-slate-800 leading-tight">Concepto</h3>
+                <div class="flex items-baseline gap-1 mt-1">
+                    <span class="text-3xl font-bold text-slate-900" id="card-amount">$0.00</span>
+                    <span class="text-slate-500 text-sm">MXN</span>
+                </div>
+                <div class="mt-4 flex flex-wrap gap-2">
+                    <span id="card-category"
+                        class="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-md font-medium">Categoría</span>
+                    <span id="card-merchant"
+                        class="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-md font-medium"><i
+                            class="fa-solid fa-store mr-1"></i> Comercio</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transactions List -->
+        <div class="w-full">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider">Recientes</h2>
+                <button onclick="app.refreshTransactions()" class="text-blue-500 hover:text-blue-700 text-xs">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <table class="w-full text-sm text-left">
+                    <tbody id="transaction-list" class="divide-y divide-slate-100">
+                        <!-- Rows rendered by JS -->
+                        <tr>
+                            <td class="px-4 py-3 text-center text-slate-400 text-xs">Cargando datos...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full py-4 text-center text-slate-300 text-xs">
+        <p>Nexus Protocol v2.0 • Local MVP</p>
+    </footer>
+
+    <!-- App Logic -->
+    <script src="/static/app.js"></script>
+</body>
+
+</html>

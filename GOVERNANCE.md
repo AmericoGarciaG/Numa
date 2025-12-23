@@ -53,6 +53,7 @@ Existe un único documento que gobierna el comportamiento del sistema.
     *   **Inferencia (Razonamiento):** Google Gemini 1.5 Flash (vía `google-generativeai`).
     *   **Audio (Transcripción):** Google Cloud Speech-to-Text v2 "Chirp" (vía `google-cloud-speech`).
     *   **Infraestructura Local:** Ejecución directa con `python src/main.py`. Sin Docker para desarrollo diario.
+    *   **Frontend (Regla de Fase 2):** "Frontend Ligero". Para el MVP Local, la UI se sirve como archivos estáticos (HTML/JS/CSS) desde `src/modules/web_ui` a través de FastAPI. No se permiten servidores de desarrollo separados (e.g. `npm run dev`) en esta fase.
 
 #### **4. Protocolo de Ejecución**
 

@@ -21,6 +21,9 @@ Este documento rastrea la evolución del sistema Numa desde su concepción lógi
 
 **Filosofía:** Local-First. Hacer que el sistema funcione en tu máquina antes de pensar en la nube.
 
+> **✅ FASE COMPLETADA:** 21/12/2025.
+> Validado exitosamente con Google Speech V2 (`latest_long`) y Vertex AI (`gemini-2.0-flash-exp`). Persistencia inteligente activa.
+
 ### 1.1. Fundamentos del Protocolo Nexus ✅
 - [x] **GOVERNANCE.md v3.0:** Definir el Protocolo Nexus y la Regla de Oro de la Comunicación.
 - [x] **LOGIC.md v2.0:** Reescribir contratos de negocio para arquitectura modular con Google-only stack.
@@ -28,115 +31,115 @@ Este documento rastrea la evolución del sistema Numa desde su concepción lógi
 - [x] **ROADMAP.md (Este documento):** Plan de fases alineado con Protocolo Nexus.
 
 ### 1.2. Estructura de Directorios Obligatoria
-- [ ] **Crear `/src` como raíz del código:**
-  - [ ] `/src/modules/gateway/` - Orquestador de negocio
-  - [ ] `/src/modules/ai_brain/` - Cerebro de inferencia (Google AI)
-  - [ ] `/src/modules/finance_core/` - Motor contable
-  - [ ] `/src/core/` - Infraestructura compartida (DB, Auth, Config)
-  - [ ] `/src/main.py` - Punto de entrada FastAPI
+- [x] **Crear `/src` como raíz del código:**
+  - [x] `/src/modules/gateway/` - Orquestador de negocio
+  - [x] `/src/modules/ai_brain/` - Cerebro de inferencia (Google AI)
+  - [x] `/src/modules/finance_core/` - Motor contable
+  - [x] `/src/core/` - Infraestructura compartida (DB, Auth, Config)
+  - [x] `/src/main.py` - Punto de entrada FastAPI
 
 ### 1.3. Módulo: Core (Infraestructura Compartida)
-- [ ] **`core/config.py`:** Gestión de variables de entorno (`.env`)
-- [ ] **`core/database.py`:** Conexión a SQLite local (desarrollo) con SQLAlchemy
-- [ ] **`core/auth.py`:** Autenticación JWT (generación y validación de tokens)
-- [ ] **Script de inicialización:** `python -m src.core.database init` para crear tablas
+- [x] **`core/config.py`:** Gestión de variables de entorno (`.env`)
+- [x] **`core/database.py`:** Conexión a SQLite local (desarrollo) con SQLAlchemy
+- [x] **`core/auth.py`:** Autenticación JWT (generación y validación de tokens)
+- [x] **Script de inicialización:** `python -m src.core.database init` para crear tablas
 
 ### 1.4. Módulo: AIBrain (El Cerebro de Inferencia)
 **Responsabilidad:** Abstraer servicios de Google AI.
 
-- [ ] **`ai_brain/service.py` (Interfaz Pública):**
-  - [ ] `transcribe_audio(audio_bytes: bytes, language: str) -> str`
-  - [ ] `extract_transaction_data(text: str) -> TransactionData`
-  - [ ] `analyze_document(image_bytes: bytes) -> DocumentData`
-  - [ ] `classify_category(concept: str, merchant: str) -> str`
-  - [ ] `answer_query(query: str, context: dict) -> str`
+- [x] **`ai_brain/service.py` (Interfaz Pública):**
+  - [x] `transcribe_audio(audio_bytes: bytes, language: str) -> str`
+  - [x] `extract_transaction_data(text: str) -> TransactionData`
+  - [x] `analyze_document(image_bytes: bytes) -> DocumentData`
+  - [x] `classify_category(concept: str, merchant: str) -> str`
+  - [x] `answer_query(query: str, context: dict) -> str`
 
-- [ ] **`ai_brain/chirp_client.py`:** Cliente de Google Speech-to-Text v2
-  - [ ] Configurar credenciales (`GOOGLE_APPLICATION_CREDENTIALS`)
-  - [ ] Implementar transcripción con modelo `chirp` o `latest_long`
-  - [ ] Manejo de errores (audio inaudible, formato inválido)
+- [x] **`ai_brain/chirp_client.py`:** Cliente de Google Speech-to-Text v2
+  - [x] Configurar credenciales (`GOOGLE_APPLICATION_CREDENTIALS`)
+  - [x] Implementar transcripción con modelo `chirp` o `latest_long`
+  - [x] Manejo de errores (audio inaudible, formato inválido)
 
-- [ ] **`ai_brain/gemini_client.py`:** Cliente de Google Gemini 1.5 Flash
-  - [ ] Configurar SDK `google-generativeai`
-  - [ ] Implementar extracción de datos con prompts estructurados
-  - [ ] Implementar análisis multimodal (imágenes de recibos)
-  - [ ] Implementar clasificación de categorías
-  - [ ] Implementar respuestas conversacionales (RAG)
+- [x] **`ai_brain/gemini_client.py`:** Cliente de Google Gemini 1.5 Flash
+  - [x] Configurar SDK `google-generativeai`
+  - [x] Implementar extracción de datos con prompts estructurados
+  - [x] Implementar análisis multimodal (imágenes de recibos)
+  - [x] Implementar clasificación de categorías
+  - [x] Implementar respuestas conversacionales (RAG)
 
-- [ ] **`ai_brain/schemas.py`:** DTOs para datos estructurados
-  - [ ] `TransactionData` (amount, concept)
-  - [ ] `DocumentData` (vendor, date, total_amount)
-  - [ ] `CategoryData` (category, confidence)
+- [x] **`ai_brain/schemas.py`:** DTOs para datos estructurados
+  - [x] `TransactionData` (amount, concept)
+  - [x] `DocumentData` (vendor, date, total_amount)
+  - [x] `CategoryData` (category, confidence)
 
 ### 1.5. Módulo: FinanceCore (El Motor Contable)
 **Responsabilidad:** Lógica de negocio financiera y persistencia.
 
-- [ ] **`finance_core/models.py`:** Modelos SQLAlchemy
-  - [ ] `User` (id, email, hashed_password, created_at)
-  - [ ] `Transaction` (id, user_id, amount, concept, status, merchant, transaction_date, category, created_at, verified_at)
-  - [ ] Estados: `PROVISIONAL`, `VERIFIED`, `VERIFIED_MANUAL`
+- [x] **`finance_core/models.py`:** Modelos SQLAlchemy
+  - [x] `User` (id, email, hashed_password, created_at)
+  - [x] `Transaction` (id, user_id, amount, concept, status, merchant, transaction_date, category, created_at, verified_at)
+  - [x] Estados: `PROVISIONAL`, `VERIFIED`, `VERIFIED_MANUAL`
 
-- [ ] **`finance_core/repository.py`:** Acceso a datos (Data Access Layer)
-  - [ ] `create_transaction(user_id, amount, concept) -> Transaction`
-  - [ ] `get_transaction_by_id(transaction_id, user_id) -> Transaction`
-  - [ ] `update_transaction(transaction_id, data) -> Transaction`
-  - [ ] `get_user_transactions(user_id, filters) -> List[Transaction]`
-  - [ ] **Invariante:** Todas las consultas filtradas por `user_id`
+- [x] **`finance_core/repository.py`:** Acceso a datos (Data Access Layer)
+  - [x] `create_transaction(user_id, amount, concept) -> Transaction`
+  - [x] `get_transaction_by_id(transaction_id, user_id) -> Transaction`
+  - [x] `update_transaction(transaction_id, data) -> Transaction`
+  - [x] `get_user_transactions(user_id, filters) -> List[Transaction]`
+  - [x] **Invariante:** Todas las consultas filtradas por `user_id`
 
-- [ ] **`finance_core/service.py` (Interfaz Pública):**
-  - [ ] `create_provisional_transaction(user_id, amount, concept) -> Transaction`
-  - [ ] `verify_transaction_with_document(transaction_id, document_data) -> Transaction`
-  - [ ] `verify_transaction_manually(transaction_id) -> Transaction`
-  - [ ] `calculate_user_spending(user_id, filters) -> float`
-  - [ ] `get_spending_breakdown(user_id, group_by) -> dict`
+- [x] **`finance_core/service.py` (Interfaz Pública):**
+  - [x] `create_provisional_transaction(user_id, amount, concept) -> Transaction`
+  - [x] `verify_transaction_with_document(transaction_id, document_data) -> Transaction`
+  - [x] `verify_transaction_manually(transaction_id) -> Transaction`
+  - [x] `calculate_user_spending(user_id, filters) -> float`
+  - [x] `get_spending_breakdown(user_id, group_by) -> dict`
 
-- [ ] **`finance_core/state_machine.py`:** Lógica de transiciones de estado
-  - [ ] Validar transiciones permitidas (PROVISIONAL → VERIFIED)
-  - [ ] Disparar auto-categorización al verificar
+- [x] **`finance_core/state_machine.py`:** Lógica de transiciones de estado
+  - [x] Validar transiciones permitidas (PROVISIONAL → VERIFIED)
+  - [x] Disparar auto-categorización al verificar
 
 ### 1.6. Módulo: Gateway (El Orquestador)
 **Responsabilidad:** Exposición de API y orquestación de flujos.
 
-- [ ] **`gateway/routes.py`:** Endpoints FastAPI
-  - [ ] `POST /api/auth/register` - Registro de usuario
-  - [ ] `POST /api/auth/login` - Login (devuelve JWT)
-  - [ ] `POST /api/transactions/voice` - Ingesta de audio
-  - [ ] `POST /api/transactions/{id}/verify-document` - Verificación documental
-  - [ ] `POST /api/transactions/{id}/verify-manual` - Verificación manual
-  - [ ] `GET /api/transactions` - Listar transacciones del usuario
-  - [ ] `POST /api/chat` - Consulta conversacional
+- [x] **`gateway/routes.py`:** Endpoints FastAPI
+  - [x] `POST /api/auth/register` - Registro de usuario
+  - [x] `POST /api/auth/login` - Login (devuelve JWT)
+  - [x] `POST /api/transactions/voice` - Ingesta de audio
+  - [x] `POST /api/transactions/{id}/verify-document` - Verificación documental
+  - [x] `POST /api/transactions/{id}/verify-manual` - Verificación manual
+  - [x] `GET /api/transactions` - Listar transacciones del usuario
+  - [x] `POST /api/chat` - Consulta conversacional
 
-- [ ] **`gateway/service.py` (Interfaz Pública):**
-  - [ ] `orchestrate_voice_transaction(user_id, audio_file) -> Transaction`
-  - [ ] `orchestrate_document_verification(user_id, transaction_id, document) -> Transaction`
-  - [ ] `get_user_transactions(user_id, filters) -> List[Transaction]`
-  - [ ] `handle_chat_query(user_id, query) -> str`
+- [x] **`gateway/service.py` (Interfaz Pública):**
+  - [x] `orchestrate_voice_transaction(user_id, audio_file) -> Transaction`
+  - [x] `orchestrate_document_verification(user_id, transaction_id, document) -> Transaction`
+  - [x] `get_user_transactions(user_id, filters) -> List[Transaction]`
+  - [x] `handle_chat_query(user_id, query) -> str`
 
-- [ ] **`gateway/dependencies.py`:** Dependencias FastAPI
-  - [ ] `get_current_user(token: str) -> User` - Validación JWT
+- [x] **`gateway/dependencies.py`:** Dependencias FastAPI
+  - [x] `get_current_user(token: str) -> User` - Validación JWT
 
 ### 1.7. Integración y Pruebas Locales
-- [ ] **Flujo End-to-End: Voz → Transacción**
-  - [ ] Grabar audio de prueba ("Gasté 500 pesos en el super")
-  - [ ] Llamar a `POST /api/transactions/voice` con el audio
-  - [ ] Verificar que se crea transacción `PROVISIONAL` en BD
-  - [ ] Validar que `amount=500.0` y `concept` contiene "super"
+- [x] **Flujo End-to-End: Voz → Transacción**
+  - [x] Grabar audio de prueba ("Gasté 500 pesos en el super")
+  - [x] Llamar a `POST /api/transactions/voice` con el audio
+  - [x] Verificar que se crea transacción `PROVISIONAL` en BD
+  - [x] Validar que `amount=500.0` y `concept` contiene "super"
 
-- [ ] **Flujo End-to-End: Documento → Verificación**
-  - [ ] Subir imagen de recibo de prueba
-  - [ ] Llamar a `POST /api/transactions/{id}/verify-document`
-  - [ ] Verificar que estado cambia a `VERIFIED`
-  - [ ] Validar que `merchant`, `transaction_date` y `category` se actualizan
+- [x] **Flujo End-to-End: Documento → Verificación**
+  - [x] Subir imagen de recibo de prueba
+  - [x] Llamar a `POST /api/transactions/{id}/verify-document`
+  - [x] Verificar que estado cambia a `VERIFIED`
+  - [x] Validar que `merchant`, `transaction_date` y `category` se actualizan
 
-- [ ] **Flujo End-to-End: Consulta Conversacional**
-  - [ ] Llamar a `POST /api/chat` con "¿Cuánto gasté este mes?"
-  - [ ] Verificar que la respuesta contiene el monto calculado por SQL
-  - [ ] Validar que NO hay alucinaciones (Regla de Alucinación Cero)
+- [x] **Flujo End-to-End: Consulta Conversacional**
+  - [x] Llamar a `POST /api/chat` con "¿Cuánto gasté este mes?"
+  - [x] Verificar que la respuesta contiene el monto calculado por SQL
+  - [x] Validar que NO hay alucinaciones (Regla de Alucinación Cero)
 
 ### 1.8. Documentación de API
-- [ ] **Swagger UI:** Configurar FastAPI para exponer `/docs`
-- [ ] **Ejemplos de Requests:** Agregar ejemplos en docstrings de endpoints
-- [ ] **Postman Collection:** Exportar colección de pruebas
+- [x] **Swagger UI:** Configurar FastAPI para exponer `/docs`
+- [x] **Ejemplos de Requests:** Agregar ejemplos en docstrings de endpoints
+- [x] **Postman Collection:** Exportar colección de pruebas
 
 ---
 

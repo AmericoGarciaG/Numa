@@ -35,17 +35,20 @@ app.add_middleware(
 # Include API Gateway router
 app.include_router(router, prefix="/api", tags=["Numa API"])
 
-# Root endpoint (outside /api prefix)
+# Include Static Files for Web UI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
+
+# Mount static files
+static_path = os.path.join(os.path.dirname(__file__), "modules/web_ui/static")
+app.mount("/static", StaticFiles(directory=static_path), name="static")
+
+# Root endpoint (Serve Web UI)
 @app.get("/")
-def root():
-    """Root endpoint."""
-    return {
-        "message": "Welcome to Numa AI - Protocolo Nexus Edition",
-        "version": settings.APP_VERSION,
-        "architecture": "Modular Monolith",
-        "docs": "/docs",
-        "api": "/api"
-    }
+async def root():
+    """Serve the Web UI SPA."""
+    return FileResponse(os.path.join(os.path.dirname(__file__), "modules/web_ui/templates/index.html"))
 
 
 if __name__ == "__main__":

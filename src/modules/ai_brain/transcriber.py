@@ -12,7 +12,7 @@ from google.cloud.speech_v2.types import (
     RecognizeRequest,
     RecognitionConfig,
     RecognitionFeatures,
-    AutoDetectDecodingConfig,
+    ExplicitDecodingConfig,
 )
 from google.api_core.client_options import ClientOptions
 
@@ -47,74 +47,19 @@ class Transcriber:
         Raises:
             Exception: If transcription fails.
         """
-        # Build the recognizer path
-        # Assuming a recognizer exists or using inline config if supported by v2 for simple calls.
-        # Ideally in v2, we create a Recognizer resource first, but for simplicity/statelessness, 
-        # we can target the parent project/location and specify config in request if allowed, 
-        # OR we must use a Recognizer.
-        #
-        # For simplicity in this implementation, we will use the standard pattern:
-        # 1. We assume a standard recognizer "chirp-es" might exist OR we create one dynamically (slow).
-        # 
-        # BETTER APPROACH for "Clean Code": Use inline config with a wildcard recognizer or proper v2 flow.
-        # However, v2 STRONGLY encourages creating a Recognizer first.
-        # Let's try to use a standard Recognizer ID if we were to deploy this, 
-        # but since this is "Code execution", let's create a temporary one or check if we can pass config directly.
-        #
-        # ACTUALLY: `RecognizeRequest` in v2 takes `recognizer` (resource name) AND `config` override.
-        # But `config` in Request is only allowed if the Recognizer allows it.
-        #
-        # To make this robust without pre-provisioning Terraform:
-        # We will use the `recognize` method but we need a Recognizer.
-        # Let's assume we can use a dynamic approach or just use the V1 API if V2 is too complex for "just code"?
-        # USER REQUESTED: "Speech-to-Text v2 / Chirp".
-        #
-        # Strategy:
-        # 1. Define parent path.
-        # 2. Define configuration.
-        # 3. Use `recognizer="projects/.../locations/.../recognizers/_"` (variable config) 
-        #    NOTE: The `_` recognizer is a special wildcard in some contexts, but explicit creation is safer.
-        #    
-        #    Re-reading Google Cloud V2 docs: "You must create a Recognizer to use Speech-to-Text V2."
-        #    
-        #    OK, I will implement lazy-creation of a Recognizer named 'numa-chirp-{language}' if it doesn't exist?
-        #    No, that's too complex for this snippet.
-        #    
-        #    Simpler V2 approach:
-        #    Just instantiate the client and assume the user has set up a recognizer? 
-        #    No, "The MVP must be functional and real."
-        #
-        #    Let's use the `google.cloud.speech_v1` with `model='latest_long'` or `chirp` if available there? 
-        #    Chirp is V2 only.
-        #
-        #    DECISION: I will perform the "Create Recognizer" step if it's missing, or handle it gracefully.
-        #    Actually, creating a recognizer is a one-time setup. 
-        #    I'll add a helper method `_get_or_create_recognizer`.
-        
         parent = f"projects/{self.project_id}/locations/{self.location}"
-        recognizer_id = f"numa-chirp-{language_code.lower().replace('-', '')}"
+        recognizer_id = f"numa-chirp-v3-{language_code.lower().replace('-', '')}"
         recognizer_name = f"{parent}/recognizers/{recognizer_id}"
 
-        # Logic to check/create recognizer is heavy for every partial request.
-        # Let's assume for this "Action 1" that we construct the Request expecting the recognizer to exist,
-        # OR catch the error and create it.
-        
-        # ACTUALLY, to keep it simple and fast: 
-        # Just creating the request. If it fails, that's a deployment issue.
-        # BUT I will add the code to create it if I can.
-        
-        # Let's implement the `_get_or_create_recognizer` logic logic simply.
-        
-        # However, to avoid blocking on slow creation during first request, 
-        # let's try to list recognizers or just Try.
-        
-        pass  # Placeholder for the complexity decision above.
-        
-        # Re-evaluating: Simplest path for "Real AI"
-        # Just use the V2 API.
+        # Logic to check/create recognizer involves calling API.
+        # For this prototype, we rely on lazy creation in the exception handler.
         
         config = RecognitionConfig(
-            auto_decoding_config=AutoDetectDecodingConfig(),
+            explicit_decoding_config=ExplicitDecodingConfig(
+                encoding="WEBM_OPUS",
+                sample_rate_hertz=48000, # Standard for WebM
+                audio_channel_count=1,
+            ),
             model="latest_long",
             language_codes=[language_code],
             features=RecognitionFeatures(
@@ -157,6 +102,11 @@ class Transcriber:
 
         recognizer = Recognizer(
             default_recognition_config=RecognitionConfig(
+                explicit_decoding_config=ExplicitDecodingConfig(
+                    encoding="WEBM_OPUS",
+                    sample_rate_hertz=48000,
+                    audio_channel_count=1,
+                ),
                 model="latest_long",
                 language_codes=[language_code],
                 features=RecognitionFeatures(

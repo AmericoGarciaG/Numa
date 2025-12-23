@@ -8,6 +8,9 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
+import shutil
+import os
+from datetime import datetime
 
 from src.core import auth, database
 from src.modules.finance_core import schemas, service as finance_service
@@ -116,6 +119,32 @@ async def create_transaction_from_voice(
     Implements LOGIC.md Rule 2.1 (Creación Provisional por Voz).
     Protected with JWT authentication.
     """
+    # DEBUG: Save audio locally
+    debug_dir = ".debug_audio"
+    os.makedirs(debug_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Get extension from filename if possible, else default to .webm
+    ext = os.path.splitext(audio_file.filename)[1] if audio_file.filename else ".webm"
+    if not ext: ext = ".webm"
+    
+    filename = f"debug_{timestamp}_user{current_user.id}{ext}"
+    file_path = os.path.join(debug_dir, filename)
+    
+    # Reset file pointer to beginning before saving
+    await audio_file.seek(0)
+
+    # DEBUG: Check file size
+    file_content = await audio_file.read()
+    print(f"[DEBUG] Received audio file size: {len(file_content)} bytes")
+    await audio_file.seek(0)
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(audio_file.file, buffer)
+        
+    print(f"[DEBUG] Audio saved to: {file_path}")
+    
+    # Reset file pointer again so the next service can read it
+    await audio_file.seek(0)
     try:
         transaction = await gateway_service.orchestrate_voice_transaction(
             db=db, audio_file=audio_file, user_id=current_user.id

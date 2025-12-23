@@ -76,6 +76,43 @@ class GeminiReasoning:
             # Re-raise to be handled by caller
             raise ValueError(f"Failed to extract info from text: {text}") from e
 
+    async def analyze_audio_direct(self, audio_bytes: bytes) -> Dict[str, Any]:
+        """Analyze audio bytes directly using Gemini Multimodal capabilities."""
+        from vertexai.generative_models import Part
+
+        # Create audio part
+        audio_part = Part.from_data(data=audio_bytes, mime_type="audio/webm")
+
+        prompt = f"""
+        Extract transaction details from this audio recording into JSON format.
+        
+        Output JSON with these keys:
+        - amount: number (float)
+        - concept: string (short description)
+        - merchant: string (or null if not mentioned)
+        - date: string (ISO 8601 format YYYY-MM-DD, assume today is {datetime.now().strftime('%Y-%m-%d')} if not specified)
+        - category: string (guess one: Alimentación, Transporte, Servicios, Ocio, Otros)
+
+        Return ONLY the JSON string.
+        """
+        
+        try:
+            # Gemini 2.0 Flash is multimodal
+            response = await self.model.generate_content_async([audio_part, prompt])
+            
+            clean_text = response.text.strip()
+            if clean_text.startswith("```json"):
+                clean_text = clean_text[7:]
+            if clean_text.startswith("```"):
+                clean_text = clean_text[3:] 
+            if clean_text.endswith("```"):
+                clean_text = clean_text[:-3]
+
+            return json.loads(clean_text)
+        except Exception as e:
+            print(f"Vertex AI Gemini Audio analysis failed: {e}")
+            raise ValueError("Gemini couldn't understand the audio.") from e
+
 
 # Global instance
 reasoner = GeminiReasoning()
@@ -83,3 +120,7 @@ reasoner = GeminiReasoning()
 def extract_transaction_data(text: str) -> Dict[str, Any]:
     """Public wrapper for extraction."""
     return reasoner.extract_transaction_data(text)
+
+async def analyze_audio_direct(audio_bytes: bytes) -> Dict[str, Any]:
+    """Public wrapper for direct audio analysis."""
+    return await reasoner.analyze_audio_direct(audio_bytes)

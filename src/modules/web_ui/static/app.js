@@ -1,0 +1,349 @@
+/**
+ * Numa AI Web Client (Nexus Protocol)
+ * "Frontend Ligero" Implementation
+ */
+
+const API_BASE = '/api';
+
+const app = {
+    state: {
+        isRecording: false,
+        token: null,
+        mediaRecorder: null,
+        audioChunks: [],
+        user: { email: "test@numa.com", password: "password123" } // Default test creds
+    },
+
+    elements: {
+        micBtn: document.getElementById('mic-btn'),
+        micSelect: document.getElementById('mic-select'),
+        statusText: document.getElementById('status-text'),
+        subStatus: document.getElementById('sub-status'),
+        connectionStatus: document.getElementById('connection-status'),
+        resultCard: document.getElementById('result-card'),
+        transactionList: document.getElementById('transaction-list'),
+
+        // Card fields
+        cardAmount: document.getElementById('card-amount'),
+        cardConcept: document.getElementById('card-concept'),
+        cardCategory: document.getElementById('card-category'),
+        cardMerchant: document.getElementById('card-merchant'),
+        cardDate: document.getElementById('card-date')
+    },
+
+    init: async function () {
+        console.log("🚀 Numa Client Initializing...");
+
+        // 1. Auto-Login
+        await this.login();
+
+        // 2. Setup Audio
+        // We only request permissions when user clicks first time to be polite,
+        // or we can verify support now.
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            this.updateStatus("Error: Navegador no soporta audio", "No Audio API");
+            this.elements.micBtn.disabled = true;
+        } else {
+             // Load devices (might be empty if permission not granted yet)
+             this.loadAudioDevices();
+             
+             // Refresh devices when permissions change or devices plug in
+             navigator.mediaDevices.ondevicechange = () => this.loadAudioDevices();
+        }
+
+        // 3. Setup Listeners
+        this.elements.micBtn.addEventListener('click', () => this.toggleRecording());
+
+        // 4. Initial Load
+        if (this.state.token) {
+            this.refreshTransactions();
+        }
+    },
+    
+    loadAudioDevices: async function() {
+        try {
+             // Need to request permission first to get labels
+             // If we don't have permission, labels will be empty strings
+             // We can check if we have permission first or just try enumerate
+             
+             const devices = await navigator.mediaDevices.enumerateDevices();
+             const audioInputs = devices.filter(device => device.kind === 'audioinput');
+             
+             const select = this.elements.micSelect;
+             select.innerHTML = ''; // Clear existing
+             
+             if (audioInputs.length === 0) {
+                 const option = document.createElement('option');
+                 option.text = "No se encontraron micrófonos";
+                 select.add(option);
+                 return;
+             }
+             
+             audioInputs.forEach(device => {
+                 const option = document.createElement('option');
+                 option.value = device.deviceId;
+                 option.text = device.label || `Micrófono ${select.length + 1}`;
+                 select.add(option);
+             });
+             
+             // Select default if exists, else first
+             // Browser handles default logic usually, but we can be explicit
+             
+        } catch (err) {
+            console.warn("Error loading audio devices:", err);
+            const select = this.elements.micSelect;
+            select.innerHTML = '<option>Error cargando dispositivos</option>';
+        }
+    },
+
+    login: async function () {
+        try {
+            this.updateConnection("Autenticando...");
+
+            // Try explicit register first (idempotent-ish in logic, usually fails if exists)
+            // Just try login directly. If fails 401, maybe register?
+            // For MVP simplicity, we assume the user exists OR we register.
+
+            // NOTE: In a real app we wouldn't hardcode logic.
+            // Let's try registering quickly just in case DB was reset
+            // Let's try registering quickly just in case DB was reset
+            await fetch(`${API_BASE}/users/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: this.state.user.email, password: this.state.user.password, name: "Test User" })
+            }).catch(() => { }); // Ignore fail if exists
+
+            // Login
+            const response = await fetch(`${API_BASE}/token`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `username=${encodeURIComponent(this.state.user.email)}&password=${encodeURIComponent(this.state.user.password)}`
+            });
+
+            if (!response.ok) throw new Error("Login failed");
+
+            const data = await response.json();
+            this.state.token = data.access_token;
+            this.updateConnection("Conectado", "success");
+            console.log("✅ Auth Token acquired.");
+
+        } catch (error) {
+            console.error("Auth Error:", error);
+            this.updateConnection("Desconectado", "error");
+            this.updateStatus("Error de Autenticación", "Revisa la consola");
+        }
+    },
+
+    toggleRecording: async function () {
+        if (this.state.isRecording) {
+            this.stopRecording();
+        } else {
+            this.startRecording();
+        }
+    },
+
+    startRecording: async function () {
+        try {
+            const selectedMicId = this.elements.micSelect.value;
+            const constraints = { 
+                audio: selectedMicId ? { deviceId: { exact: selectedMicId } } : true 
+            };
+            
+            console.log(`[DEBUG] Starting recording with device: ${selectedMicId || 'default'}`);
+
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+            // Explicitly request WebM/Opus if supported
+            const options = { mimeType: 'audio/webm' };
+            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                options.mimeType = 'audio/webm;codecs=opus';
+            }
+
+            this.state.mediaRecorder = new MediaRecorder(stream, options);
+            this.state.audioChunks = [];
+
+            this.state.mediaRecorder.addEventListener("dataavailable", event => {
+                if (event.data.size > 0) {
+                    this.state.audioChunks.push(event.data);
+                    console.log(`[DEBUG] Chunk received: ${event.data.size} bytes`);
+                }
+            });
+
+            this.state.mediaRecorder.addEventListener("stop", () => {
+                console.log("[DEBUG] Recorder stopped. Processing Blob...");
+                // Pequeño delay de seguridad o verificación directa
+                const mimeType = this.state.mediaRecorder.mimeType || 'audio/webm';
+                const audioBlob = new Blob(this.state.audioChunks, { type: mimeType });
+                
+                console.log(`[DEBUG] Final Blob Size: ${audioBlob.size} bytes, Type: ${audioBlob.type}`);
+                
+                if (audioBlob.size < 100) {
+                    console.warn("[WARN] Blob too small. Recording failed?");
+                    this.updateStatus("Error: Audio vacío", "Intenta de nuevo");
+                    return;
+                }
+                
+                this.sendAudio(audioBlob);
+            });
+
+            this.state.mediaRecorder.start();
+            this.state.isRecording = true;
+
+            // UI Update
+            this.elements.micBtn.classList.add('recording');
+            this.updateStatus("Escuchando...", "Di tu gasto...");
+
+        } catch (err) {
+            console.error("Mic access denied:", err);
+            this.updateStatus("Acceso a Micrófono Denegado", "Permite el acceso para continuar");
+        }
+    },
+
+    stopRecording: function () {
+        if (this.state.mediaRecorder && this.state.isRecording) {
+            this.state.mediaRecorder.stop();
+            
+            // Stop all tracks to release the microphone
+            this.state.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            
+            this.state.isRecording = false;
+
+            // UI Update
+            this.elements.micBtn.classList.remove('recording');
+            this.updateStatus("Procesando...", "No cierres la ventana");
+        }
+    },
+
+    sendAudio: async function (audioBlob) {
+        if (!this.state.token) return;
+
+        // Feedback Steps
+        setTimeout(() => this.updateSubStatus("Enviando audio..."), 100);
+        setTimeout(() => this.updateSubStatus("Transcribiendo (Google V2)..."), 1000); // Fake progress for UX
+        setTimeout(() => this.updateSubStatus("Analizando con Gemini AI..."), 2500);
+
+        const formData = new FormData();
+        // Naming the file audio.mp3 so server treats it as audio 
+        // (even if container is webm, modern ffmpeg/libs handle it)
+        formData.append("audio_file", audioBlob, "recording.webm");
+
+        try {
+            const response = await fetch(`${API_BASE}/transactions/voice`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.state.token}`
+                },
+                body: formData
+            });
+
+            if (response.status === 201) { // 201 Created
+                const transaction = await response.json();
+                this.showSuccess(transaction);
+                this.refreshTransactions(); // Auto-refresh report
+            } else {
+                const err = await response.text();
+                throw new Error(err);
+            }
+
+        } catch (error) {
+            console.error("Transaction Error:", error);
+            this.updateStatus("Error en Transacción", "Intenta de nuevo");
+            this.elements.micBtn.classList.add('bg-red-600');
+            setTimeout(() => this.elements.micBtn.classList.remove('bg-red-600'), 2000);
+        }
+    },
+
+    showSuccess: function (t) {
+        this.updateStatus("¡Listo!", "Gasto registrado");
+
+        // Populate Card
+        this.elements.cardConcept.textContent = t.concept;
+        this.elements.cardAmount.textContent = `$${t.amount.toFixed(2)}`;
+        this.elements.cardCategory.textContent = t.category || "General";
+        this.elements.cardMerchant.innerHTML = `<i class="fa-solid fa-store mr-1"></i> ${t.merchant || "Desconocido"}`;
+
+        // Show Card with animation
+        const card = this.elements.resultCard;
+        card.classList.remove('hidden');
+        // Trigger reflow
+        void card.offsetWidth;
+        card.classList.remove('translate-y-4', 'opacity-0');
+
+        // Reset status after a while
+        setTimeout(() => {
+            this.updateStatus("Presiona para hablar", "Registra otro gasto");
+        }, 5000);
+    },
+
+    refreshTransactions: async function () {
+        if (!this.state.token) return;
+
+        try {
+            const response = await fetch(`${API_BASE}/transactions`, {
+                headers: { 'Authorization': `Bearer ${this.state.token}` }
+            });
+            const data = await response.json();
+            this.renderTable(data);
+        } catch (error) {
+            console.error("Fetch Error:", error);
+        }
+    },
+
+    renderTable: function (transactions) {
+        const tbody = this.elements.transactionList;
+        tbody.innerHTML = '';
+
+        if (transactions.length === 0) {
+            tbody.innerHTML = `<tr><td class="px-4 py-4 text-center text-slate-400">Sin transacciones recientes</td></tr>`;
+            return;
+        }
+
+        // Sort by id desc (newest first) logic should be in backend but lets ensure
+        const sorted = transactions.sort((a, b) => b.id - a.id).slice(0, 10);
+
+        sorted.forEach(t => {
+            const row = document.createElement('tr');
+            row.className = 'border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors';
+
+            const dateStr = new Date(t.created_at).toLocaleDateString();
+
+            row.innerHTML = `
+                <td class="px-4 py-3">
+                    <div class="font-medium text-slate-800">${t.concept}</div>
+                    <div class="text-xs text-slate-400">${t.merchant || '—'}</div>
+                </td>
+                <td class="px-4 py-3 text-right">
+                    <div class="font-bold text-slate-700">$${t.amount.toFixed(2)}</div>
+                    <div class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 inline-block mt-0.5">${t.category || '?'}</div>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    },
+
+    // Helpers
+    updateStatus: function (main, sub) {
+        this.elements.statusText.textContent = main;
+        if (sub) this.elements.subStatus.textContent = sub;
+    },
+
+    updateSubStatus: function (sub) {
+        this.elements.subStatus.textContent = sub;
+    },
+
+    updateConnection: function (text, type) {
+        const el = this.elements.connectionStatus;
+        el.textContent = text;
+        el.className = 'text-xs font-medium px-2 py-1 rounded ';
+        if (type === 'success') el.classList.add('bg-green-100', 'text-green-600');
+        else if (type === 'error') el.classList.add('bg-red-100', 'text-red-600');
+        else el.classList.add('bg-slate-100', 'text-slate-400');
+    }
+};
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    app.init();
+    // Expose for debug
+    window.app = app;
+});

@@ -7,7 +7,19 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
+# Load environment variables from .env file
 load_dotenv()
+
+# Auto-detect credentials.json for local development
+if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+    # Look for credentials.json in project root (2 levels up from src/core)
+    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    creds_path = os.path.join(root_dir, "credentials.json")
+    if os.path.exists(creds_path):
+        print(f"Auto-loading credentials from: {creds_path}")
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
+    else:
+        print("⚠️ Warning: credentials.json not found in root and GOOGLE_APPLICATION_CREDENTIALS not set.")
 
 
 class Settings:

@@ -52,6 +52,7 @@ logs/
 
 # Development Utilities
 .dev_utils/
+.debug_audio/
 
 # Docker volumes and data
 .docker/
@@ -132,7 +133,13 @@ CONTEXT.md
 **/.env.terraform
 AUDIT_REPORT.md
 audit_project.ps1
-audit_nexus.ps1
-AUDIT_NEXUS_REPORT.md
-Prompt - Reporte de Auditoría Numa.md
 credentials.json
+
+.docs_n_scripts_stored/AUDIT_NEXUS_REPORT.md
+.docs_n_scripts_stored/audit_nexus.ps1
+.docs_n_scripts_stored/generate_context.ps1
+.docs_n_scripts_stored/REAL_SCENARIO_REPORT.md
+.docs_n_scripts_stored/TEST_REPORT.md
+.trae/rules/project_rules.md
+docs/Prompt - Reporte de Auditoría Numa.md
+audit_nexus.ps1
