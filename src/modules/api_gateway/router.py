@@ -4,6 +4,7 @@ This module defines all HTTP endpoints for the Numa API.
 Endpoints delegate to the orchestration service.
 """
 
+import json
 import os
 import shutil
 from datetime import datetime
@@ -158,6 +159,31 @@ async def create_transaction_from_voice(
         result = await gateway_service.orchestrate_voice_transaction(
             db=db, audio_file=audio_file, user_id=current_user.id
         )
+        debug_transcription = result.get("debug_transcription", "ERROR")
+        debug_ai_analysis = result.get("debug_ai_analysis")
+        debug_final_action = result.get("debug_final_action")
+
+        debug_data = {
+            "timestamp": timestamp,
+            "user_id": current_user.id,
+            "transcription": debug_transcription,
+            "ai_analysis": debug_ai_analysis,
+            "final_action": debug_final_action,
+        }
+
+        json_filename = f"debug_{timestamp}_user{current_user.id}.json"
+        json_path = os.path.join(debug_dir, json_filename)
+        try:
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(debug_data, f, ensure_ascii=False, indent=2)
+            print(f"[DEBUG] Debug JSON saved to: {json_path}")
+        except Exception as log_err:
+            print(f"[WARN] Failed to write debug JSON: {log_err}")
+
+        result.pop("debug_transcription", None)
+        result.pop("debug_ai_analysis", None)
+        result.pop("debug_final_action", None)
+
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

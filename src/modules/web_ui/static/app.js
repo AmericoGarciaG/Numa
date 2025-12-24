@@ -362,13 +362,36 @@ const app = {
                     }
                 }
             } else {
-                const err = await response.text();
-                throw new Error(err);
+                let errorText = "No te escuché bien. Por favor intenta de nuevo.";
+                try {
+                    const contentType = response.headers.get('content-type') || '';
+                    if (contentType.includes('application/json')) {
+                        const errJson = await response.json();
+                        if (errJson && typeof errJson.detail === 'string') {
+                            errorText = errJson.detail;
+                        }
+                    } else {
+                        const errText = await response.text();
+                        if (errText) {
+                            errorText = errText;
+                        }
+                    }
+                } catch (parseError) {
+                }
+
+                this.showSystemMessage(errorText);
+                this.updateStatus("Presiona para hablar", "Registra un gasto con tu voz");
+                this.elements.micBtn.disabled = false;
+                this.elements.micBtn.classList.add('bg-amber-500');
+                setTimeout(() => this.elements.micBtn.classList.remove('bg-amber-500'), 1500);
+                return;
             }
 
         } catch (error) {
             console.error("Transaction Error:", error);
-            this.updateStatus("Error en Transacción", "Intenta de nuevo");
+            this.showSystemMessage("Tuvimos un problema al procesar tu audio. Intenta de nuevo.");
+            this.updateStatus("Presiona para hablar", "Registra un gasto con tu voz");
+            this.elements.micBtn.disabled = false;
             this.elements.micBtn.classList.add('bg-red-600');
             setTimeout(() => this.elements.micBtn.classList.remove('bg-red-600'), 2000);
         }

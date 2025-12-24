@@ -115,72 +115,56 @@ async def orchestrate_voice_transaction(
         print(f"ERROR: STT Failed: {e}")
         transcribed_text = ""
 
-    if not transcribed_text:
+    debug_transcription = transcribed_text or "ERROR"
+    debug_analysis = None
+    debug_final_action = None
+
+    normalized_transcription = (transcribed_text or "").strip()
+    if not normalized_transcription or normalized_transcription.upper() == "ERROR":
         print(
-            "[WARN] Transcription failed/empty. Attempting Gemini Multimodal Fallback..."
+            "[WARN] No valid transcription detected. Aborting voice transaction flow."
         )
-        try:
-            extracted_list = await reasoning.analyze_audio_direct(audio_bytes)
-            print(f"DEBUG: Gemini Fallback Success: {extracted_list}")
-
-            transactions: List[Transaction] = []
-            for item in extracted_list:
-                try:
-                    amount = float(item.get("amount", 0.0))
-                except (ValueError, TypeError):
-                    amount = 0.0
-
-                concept = item.get("concept", "Gasto de voz")
-                merchant = item.get("merchant")
-                if (
-                    merchant
-                    and concept
-                    and merchant.strip().lower() == concept.strip().lower()
-                ):
-                    merchant = None
-                date_str = item.get("date")
-                transaction_date = None
-                if date_str:
-                    try:
-                        transaction_date = datetime.strptime(date_str, "%Y-%m-%d")
-                    except ValueError:
-                        transaction_date = None
-
-                tx = finance_core.create_provisional_transaction(
-                    db=db,
-                    user_id=user_id,
-                    amount=amount,
-                    concept=concept,
-                    transaction_type=TransactionType[
-                        item.get("type", "EXPENSE").upper()
-                    ],
-                    category=item.get("category"),
-                    merchant=merchant,
-                    transaction_date=transaction_date,
-                )
-                transactions.append(tx)
-
-            narrative = _generate_narrative(transactions)
-            return {"type": "transaction", "data": transactions, "message": narrative}
-        except Exception as gemini_err:
-            print(f"ERROR: Gemini Fallback Failed: {gemini_err}")
-            raise ValueError(
-                "No se pudo entender el audio (STT vacío y Gemini falló). Intenta hablar más claro."
-            )
+        raise ValueError(
+            "No pude detectar voz clara en el audio. Por favor intenta de nuevo."
+        )
 
     print(f"DEBUG: Transcribed text: {transcribed_text}")
-    if not transcribed_text:
-        raise ValueError("Audio transcription yielded empty text.")
 
     try:
-        intent_result = reasoning.classify_intent(transcribed_text)
-        intent = intent_result.get("intent", "WRITE_LOG")
-        print(f"DEBUG: Classified intent: {intent_result}")
+        cascade = reasoning.analyze_input_stream(transcribed_text)
+        debug_analysis = cascade
+        cascade_intent = cascade.get("intent", "WRITE")
+        print(f"DEBUG: Cascade analysis: {cascade}")
     except Exception as e:
-        print(f"ERROR: Intent classification failed: {e}")
-        intent = "WRITE_LOG"
+        print(f"ERROR: Input stream analysis failed: {e}")
+        cascade_intent = "WRITE"
 
-    if intent == "QUERY":
+    normalized = (transcribed_text or "").strip().lower()
+
+    if cascade_intent == "NOISE":
+        debug_final_action = "CHAT"
+        return {
+            "type": "chat",
+            "message": "No te entendí, repítelo por favor.",
+            "debug_transcription": debug_transcription,
+            "debug_ai_analysis": debug_analysis,
+            "debug_final_action": debug_final_action,
+        }
+
+    if cascade_intent in ("META", "SOCIAL"):
+        chat_message = reasoning.generate_chat_response(
+            transcribed_text, mode="CHAT"
+        )
+        debug_final_action = "CHAT"
+        return {
+            "type": "chat",
+            "message": chat_message,
+            "debug_transcription": debug_transcription,
+            "debug_ai_analysis": debug_analysis,
+            "debug_final_action": debug_final_action,
+        }
+
+    if cascade_intent == "READ":
         chat_data = await handle_chat_query(
             db=db, query=transcribed_text, user_id=user_id
         )
@@ -188,38 +172,73 @@ async def orchestrate_voice_transaction(
             "response",
             "Procesé tu consulta financiera.",
         )
-        return {"type": "chat", "message": message}
+        debug_final_action = "CHAT"
+        return {
+            "type": "chat",
+            "message": message,
+            "debug_transcription": debug_transcription,
+            "debug_ai_analysis": debug_analysis,
+            "debug_final_action": debug_final_action,
+        }
 
-    if intent == "UNKNOWN":
-        normalized = (transcribed_text or "").strip().lower()
-        if normalized in ("gasto", "gasto.", "gasto?"):
-            help_message = "¿De qué fue el gasto y cuánto costó?"
-        elif normalized in ("ingreso", "ingreso.", "ingreso?"):
+    if cascade_intent == "AMBIGUOUS":
+        if "ingreso" in normalized:
             help_message = "¿De qué fue el ingreso y de cuánto fue?"
-        elif normalized in ("deuda", "deuda.", "deuda?"):
+        elif "deuda" in normalized:
             help_message = "¿A quién le debes y cuánto es la deuda?"
         else:
-            help_message = (
-                "No estoy seguro de qué hacer con eso. "
-                "¿Quieres registrar un gasto, hacer una consulta o simplemente charlar?"
-            )
-        return {"type": "chat", "message": help_message}
-
-    if intent == "CHAT":
-        chat_message = reasoning.generate_chat_response(
-            transcribed_text, mode="CHAT"
-        )
-        return {"type": "chat", "message": chat_message}
+            help_message = "¿De qué fue el gasto/ingreso? Necesito más detalles."
+        debug_final_action = "CHAT"
+        return {
+            "type": "chat",
+            "message": help_message,
+            "debug_transcription": debug_transcription,
+            "debug_ai_analysis": debug_analysis,
+            "debug_final_action": debug_final_action,
+        }
 
     try:
         extracted_list = reasoning.extract_transaction_data(transcribed_text)
         print(f"DEBUG: Extracted data list: {extracted_list}")
-    except reasoning.IncompleteInfoError:
-        message = (
-            "Entendí que quieres registrar un movimiento, pero necesito más detalles. "
-            "¿Podrías decirme qué fue y cuánto costó?"
-        )
-        return {"type": "chat", "message": message}
+    except reasoning.IncompleteInfoError as e:
+        error_reason = str(e) if str(e) else ""
+        if "Monto obligatorio" in error_reason:
+            message = (
+                "Entendí el concepto, pero necesito el monto para registrarlo. "
+                "¿Cuánto costó?"
+            )
+        else:
+            message = (
+                "Entendí que quieres registrar algo, pero me faltan detalles. "
+                "¿Podrías decirme qué fue y cuánto costó?"
+            )
+        debug_final_action = "CHAT"
+        return {
+            "type": "chat",
+            "message": message,
+            "debug_transcription": debug_transcription,
+            "debug_ai_analysis": debug_analysis,
+            "debug_final_action": debug_final_action,
+        }
+    except ValueError as e:
+        error_text = str(e)
+        if (
+            "Failed to extract info from text" in error_text
+            or "Concepto demasiado genérico y sin monto." in error_text
+        ):
+            message = (
+                "Entendí que quieres registrar algo, pero me faltan detalles. "
+                "¿Podrías decirme qué fue y cuánto costó?"
+            )
+            debug_final_action = "CHAT"
+            return {
+                "type": "chat",
+                "message": message,
+                "debug_transcription": debug_transcription,
+                "debug_ai_analysis": debug_analysis,
+                "debug_final_action": debug_final_action,
+            }
+        raise
     except Exception as e:
         raise ValueError(f"Data extraction failed: {str(e)}")
 
@@ -228,7 +247,14 @@ async def orchestrate_voice_transaction(
             "Entendí que quieres registrar algo, pero me faltan datos. "
             "¿Podrías decirlo de nuevo con el monto y el concepto?"
         )
-        return {"type": "chat", "message": message}
+        debug_final_action = "CHAT"
+        return {
+            "type": "chat",
+            "message": message,
+            "debug_transcription": debug_transcription,
+            "debug_ai_analysis": debug_analysis,
+            "debug_final_action": debug_final_action,
+        }
 
     transactions: List[Transaction] = []
     for item in extracted_list:
@@ -267,7 +293,15 @@ async def orchestrate_voice_transaction(
         transactions.append(tx)
 
     narrative = _generate_narrative(transactions)
-    return {"type": "transaction", "data": transactions, "message": narrative}
+    debug_final_action = "WRITE"
+    return {
+        "type": "transaction",
+        "data": transactions,
+        "message": narrative,
+        "debug_transcription": debug_transcription,
+        "debug_ai_analysis": debug_analysis,
+        "debug_final_action": debug_final_action,
+    }
 
 
 # ============================================================================
