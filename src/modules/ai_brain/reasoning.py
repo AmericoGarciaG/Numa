@@ -7,12 +7,16 @@ It is optimized for structured JSON extraction from natural language.
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import vertexai
 from vertexai.generative_models import GenerationConfig, GenerativeModel
 
 from src.core.config import settings
+
+
+class IncompleteInfoError(ValueError):
+    pass
 
 
 class GeminiReasoning:
@@ -48,7 +52,7 @@ class GeminiReasoning:
         - type: string (must be one of: 'EXPENSE', 'INCOME', 'DEBT')
         - amount: number (float)
         - concept: string (short description)
-        - merchant: string (the source for INCOME, the creditor for DEBT, or the store for EXPENSE. If the store or vendor is mentioned, you must fill this field with a non-empty string.)
+        - merchant: string or null (the source for INCOME, the creditor for DEBT, or the store for EXPENSE. If the store or vendor is not explicitly mentioned, you MUST return null for merchant. Do NOT copy the concept into the merchant field.)
         - date: string (ISO 8601 format YYYY-MM-DD, assume today is {datetime.now().strftime('%Y-%m-%d')} if not specified)
         - category: string. You MUST choose exactly one from this closed taxonomy:
           - Esenciales: "Vivienda", "Servicios", "Despensa", "Transporte", "Salud", "Educación"
@@ -62,6 +66,10 @@ class GeminiReasoning:
         Avoid using generic categories:
         - Avoid the category "Otros" or any variation.
         - Avoid using "Compras" unless it is absolutely impossible to map the item into "Ropa/Calzado", "Hogar/Muebles", "Electrónica" or "Cuidado Personal".
+
+        Validation rules:
+        - If the text does not contain enough information to form a valid transaction (for example, it is missing both amount and concept), return an empty JSON array [] instead of inventing values.
+        - If a concept is mentioned but no amount is specified, set amount to 0 and do not invent or guess a price.
 
         Return ONLY the JSON array.
         """
@@ -83,12 +91,39 @@ class GeminiReasoning:
 
             data = json.loads(clean_text)
             if isinstance(data, dict):
-                return [data]
-            return data
+                data_list: List[Dict[str, Any]] = [data]
+            else:
+                data_list = list(data)
+            valid_items: List[Dict[str, Any]] = []
+            last_reason = ""
+            for item in data_list:
+                is_valid, reason = self._is_valid_transaction(item)
+                if is_valid:
+                    valid_items.append(item)
+                else:
+                    last_reason = reason or last_reason
+            if not valid_items:
+                raise IncompleteInfoError(
+                    last_reason or "Incomplete transaction information."
+                )
+            return valid_items
         except Exception as e:
             print(f"Vertex AI Gemini extraction failed: {e}")
             # Re-raise to be handled by caller
             raise ValueError(f"Failed to extract info from text: {text}") from e
+
+    def _is_valid_transaction(self, transaction_data: Dict[str, Any]) -> Tuple[bool, str]:
+        concept_raw = transaction_data.get("concept")
+        concept_text = (concept_raw or "").strip().lower()
+        amount_raw = transaction_data.get("amount", 0)
+        try:
+            amount_value = float(amount_raw)
+        except (TypeError, ValueError):
+            amount_value = 0.0
+        blacklist = ["gasto", "ingreso", "deuda", "compra", "pago", "dinero"]
+        if amount_value == 0 and (concept_text in blacklist or len(concept_text) < 3):
+            return False, "Concepto demasiado genérico y sin monto."
+        return True, ""
 
     async def analyze_audio_direct(self, audio_bytes: bytes) -> List[Dict[str, Any]]:
         """Analyze audio bytes directly using Gemini Multimodal capabilities."""
@@ -105,7 +140,7 @@ class GeminiReasoning:
         - type: string (must be one of: 'EXPENSE', 'INCOME', 'DEBT')
         - amount: number (float)
         - concept: string (short description)
-        - merchant: string (the source for INCOME, the creditor for DEBT, or the store for EXPENSE. If the store or vendor is mentioned, you must fill this field with a non-empty string.)
+        - merchant: string or null (the source for INCOME, the creditor for DEBT, or the store for EXPENSE. If the store or vendor is not explicitly mentioned, you MUST return null for merchant. Do NOT copy the concept into the merchant field.)
         - date: string (ISO 8601 format YYYY-MM-DD, assume today is {datetime.now().strftime('%Y-%m-%d')} if not specified)
         - category: string. You MUST choose exactly one from this closed taxonomy:
           - Esenciales: "Vivienda", "Servicios", "Despensa", "Transporte", "Salud", "Educación"
@@ -119,6 +154,10 @@ class GeminiReasoning:
         Avoid using generic categories:
         - Avoid the category "Otros" or any variation.
         - Avoid using "Compras" unless it is absolutely impossible to map the item into "Ropa/Calzado", "Hogar/Muebles", "Electrónica" or "Cuidado Personal".
+
+        Validation rules:
+        - If the audio does not contain enough information to form a valid transaction (for example, it is missing both amount and concept), return an empty JSON array [] instead of inventing values.
+        - If a concept is mentioned but no amount is specified, set amount to 0 and do not invent or guess a price.
 
         Return ONLY the JSON array.
         """
@@ -204,6 +243,79 @@ class GeminiReasoning:
             print(f"Vertex AI Gemini query intent analysis failed: {e}")
             raise ValueError(f"Failed to analyze query intent: {text}") from e
 
+    def classify_intent(self, text: str) -> Dict[str, Any]:
+        prompt = f"""
+        You are a financial assistant. Analyze the user's utterance and classify the primary intent.
+
+        User utterance: "{text}"
+
+        You must output a single JSON object with this structure:
+        {{
+          "intent": "WRITE_LOG" | "QUERY" | "CHAT" | "UNKNOWN",
+          "confidence": float
+        }}
+
+        Definitions:
+        - WRITE_LOG: The user wants to register expenses, income, debts, or financial plans.
+          Examples: "Gasté 50", "Anota esto", "Registra un pago", "Me pagaron la nómina".
+        - QUERY: The user is asking for financial information about past or current data.
+          Examples: "¿Cuánto gasté?", "¿Tengo saldo?", "¿Cuánto he gastado hoy en comida?".
+        - CHAT: Greetings, non-financial questions, or general small talk.
+          Examples: "Hola", "¿Quién eres?", "Cuéntame un chiste".
+        - UNKNOWN: Use this when the utterance is unintelligible, too short to understand (for example fewer than three meaningful words), or clearly lacks any financial context and cannot be confidently mapped to another intent.
+
+        Rules:
+        - Choose the intent that best matches the entire utterance.
+        - If you are not at least 0.7 confident about a specific intent, prefer returning "CHAT" or "UNKNOWN" and set confidence below 0.7.
+        - If the utterance is a single generic word such as "gasto", "ingreso" or "deuda", treat it as incomplete and classify it as "UNKNOWN" or "CHAT", not "WRITE_LOG".
+        - confidence must be a float between 0 and 1.
+
+        Output only the JSON object.
+        """
+
+        try:
+            response = self.model.generate_content(prompt)
+            clean_text = response.text.strip()
+            if clean_text.startswith("```json"):
+                clean_text = clean_text[7:]
+            if clean_text.startswith("```"):
+                clean_text = clean_text[3:]
+            if clean_text.endswith("```"):
+                clean_text = clean_text[:-3]
+            data = json.loads(clean_text)
+            intent = data.get("intent")
+            confidence = data.get("confidence")
+            try:
+                confidence_value = float(confidence)
+            except (TypeError, ValueError):
+                confidence_value = None
+            if confidence_value is not None and confidence_value < 0.7:
+                if intent in ("WRITE_LOG", "QUERY"):
+                    data["intent"] = "UNKNOWN"
+            text_normalized = (text or "").strip().lower()
+            if text_normalized in ("gasto", "ingreso", "deuda"):
+                data["intent"] = "UNKNOWN"
+            return data
+        except Exception as e:
+            print(f"Vertex AI Gemini intent classification failed: {e}")
+            raise ValueError(f"Failed to classify intent: {text}") from e
+
+    def generate_chat_response(self, text: str, mode: str = "CHAT") -> str:
+        prompt = f"""
+        You are Numa, a Spanish-speaking financial assistant.
+        You can register expenses, income and debts, and answer questions about the user's balance and spending.
+
+        Interaction mode: {mode}
+        User utterance: "{text}"
+
+        Instructions:
+        - If the user asks about personal finances (spending, income, debts, budgets, goals, savings), answer briefly and concretely in Spanish.
+        - If the user asks about topics unrelated to finances, respond in Spanish explaining that you are a financial assistant and invite them to ask about their money, spending, income or debts.
+        - Keep the answer under three short sentences.
+        """
+        response = self.model.generate_content(prompt)
+        return response.text.strip()
+
     def analyze_confirmation_intent(self, text: str) -> Dict[str, Any]:
         prompt = f"""
         You are a financial assistant specialized in confirmation flows.
@@ -263,3 +375,11 @@ def analyze_query_intent(text: str, current_date: str) -> Dict[str, Any]:
 
 def analyze_confirmation_intent(text: str) -> Dict[str, Any]:
     return reasoner.analyze_confirmation_intent(text)
+
+
+def classify_intent(text: str) -> Dict[str, Any]:
+    return reasoner.classify_intent(text)
+
+
+def generate_chat_response(text: str, mode: str = "CHAT") -> str:
+    return reasoner.generate_chat_response(text, mode)

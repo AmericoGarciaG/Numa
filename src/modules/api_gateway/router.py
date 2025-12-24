@@ -114,7 +114,9 @@ def login_for_access_token(
 
 
 @router.post(
-    "/transactions/voice", response_model=list[schemas.Transaction], status_code=201
+    "/transactions/voice",
+    response_model=schemas.VoiceTransactionResponse,
+    status_code=201,
 )
 async def create_transaction_from_voice(
     audio_file: UploadFile = File(...),
@@ -151,13 +153,12 @@ async def create_transaction_from_voice(
 
     print(f"[DEBUG] Audio saved to: {file_path}")
 
-    # Reset file pointer again so the next service can read it
     await audio_file.seek(0)
     try:
-        transactions = await gateway_service.orchestrate_voice_transaction(
+        result = await gateway_service.orchestrate_voice_transaction(
             db=db, audio_file=audio_file, user_id=current_user.id
         )
-        return transactions
+        return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

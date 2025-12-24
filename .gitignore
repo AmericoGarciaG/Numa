@@ -145,3 +145,5 @@ docs/Prompt - Reporte de Auditoría Numa.md
 audit_nexus.ps1
 .docs_n_scripts_stored/DEBUG_UI_AI.md
 .docs_n_scripts_stored/DEBUG_UI_STYLE.md
+.docs_n_scripts_stored/AUDIT_LOGIC_REPORT.md
+audit_logic.ps1

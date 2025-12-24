@@ -7,7 +7,7 @@ PROTOCOLO NEXUS: This is the PUBLIC INTERFACE of the APIGateway module.
 """
 
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
@@ -18,7 +18,64 @@ from src.modules.ai_brain import service as ai_brain_service
 from src.modules.ai_brain import transcriber
 # We validly import finance_core
 from src.modules.finance_core import service as finance_core
-from src.modules.finance_core.models import TransactionType
+from src.modules.finance_core.models import Transaction, TransactionType
+
+
+def _generate_narrative(transactions: List[Transaction]) -> str:
+    if not transactions:
+        return "No se registró ningún movimiento."
+
+    if len(transactions) == 1:
+        t = transactions[0]
+        tx_type = getattr(t, "type", None)
+        concept = (getattr(t, "concept", "") or "").strip() or "el movimiento"
+        amount = getattr(t, "amount", 0.0) or 0.0
+        merchant = (getattr(t, "merchant", "") or "").strip()
+
+        if tx_type == TransactionType.INCOME:
+            return f"¡Súper! Registré el ingreso de {concept} por ${amount:.2f}."
+        if tx_type == TransactionType.DEBT:
+            return f"Entendido. Registré la deuda de {concept} por ${amount:.2f}."
+
+        base = f"Listo. Anoté {concept} por ${amount:.2f}"
+        if merchant and merchant.lower() != concept.lower():
+            base += f" en {merchant}."
+        else:
+            base += "."
+        return base
+
+    expenses: List[Transaction] = []
+    incomes: List[Transaction] = []
+    debts: List[Transaction] = []
+
+    for t in transactions:
+        tx_type = getattr(t, "type", None)
+        if tx_type == TransactionType.EXPENSE:
+            expenses.append(t)
+        elif tx_type == TransactionType.INCOME:
+            incomes.append(t)
+        elif tx_type == TransactionType.DEBT:
+            debts.append(t)
+
+    parts = []
+
+    if expenses:
+        total = sum((getattr(t, "amount", 0.0) or 0.0) for t in expenses)
+        parts.append(f"{len(expenses)} gastos (${total:,.2f})")
+
+    if incomes:
+        total = sum((getattr(t, "amount", 0.0) or 0.0) for t in incomes)
+        parts.append(f"{len(incomes)} ingresos (${total:,.2f})")
+
+    if debts:
+        total = sum((getattr(t, "amount", 0.0) or 0.0) for t in debts)
+        parts.append(f"{len(debts)} deudas (${total:,.2f})")
+
+    if not parts:
+        return "Procesé tus movimientos."
+
+    return f"Procesado: {', '.join(parts)}."
+
 
 # ============================================================================
 # VOICE TRANSACTION ORCHESTRATION
@@ -41,12 +98,11 @@ async def orchestrate_voice_transaction(
         user_id: ID of the user creating the transaction
 
     Returns:
-        Transaction: The newly created provisional transaction
+        dict: {"data": List[Transaction], "message": str}
 
     Raises:
         ValueError: If transcription or extraction fails
     """
-    # Step 1: Transcribe audio using AIBrain (Real Chirp)
     audio_bytes = await audio_file.read()
     print(f"DEBUG: Received audio bytes: {len(audio_bytes)}")
 
@@ -59,7 +115,6 @@ async def orchestrate_voice_transaction(
         print(f"ERROR: STT Failed: {e}")
         transcribed_text = ""
 
-    # Fallback to Gemini Multimodal if STT fails or returns empty
     if not transcribed_text:
         print(
             "[WARN] Transcription failed/empty. Attempting Gemini Multimodal Fallback..."
@@ -68,7 +123,7 @@ async def orchestrate_voice_transaction(
             extracted_list = await reasoning.analyze_audio_direct(audio_bytes)
             print(f"DEBUG: Gemini Fallback Success: {extracted_list}")
 
-            transactions = []
+            transactions: List[Transaction] = []
             for item in extracted_list:
                 try:
                     amount = float(item.get("amount", 0.0))
@@ -76,6 +131,13 @@ async def orchestrate_voice_transaction(
                     amount = 0.0
 
                 concept = item.get("concept", "Gasto de voz")
+                merchant = item.get("merchant")
+                if (
+                    merchant
+                    and concept
+                    and merchant.strip().lower() == concept.strip().lower()
+                ):
+                    merchant = None
                 date_str = item.get("date")
                 transaction_date = None
                 if date_str:
@@ -93,33 +155,82 @@ async def orchestrate_voice_transaction(
                         item.get("type", "EXPENSE").upper()
                     ],
                     category=item.get("category"),
-                    merchant=item.get("merchant"),
+                    merchant=merchant,
                     transaction_date=transaction_date,
                 )
                 transactions.append(tx)
 
-            return transactions
+            narrative = _generate_narrative(transactions)
+            return {"type": "transaction", "data": transactions, "message": narrative}
         except Exception as gemini_err:
             print(f"ERROR: Gemini Fallback Failed: {gemini_err}")
             raise ValueError(
                 "No se pudo entender el audio (STT vacío y Gemini falló). Intenta hablar más claro."
             )
 
-    # Standard Flow (if STT worked)
     print(f"DEBUG: Transcribed text: {transcribed_text}")
-    # If we somehow got here with empty text and missed fallback
     if not transcribed_text:
         raise ValueError("Audio transcription yielded empty text.")
 
-    # Step 2: Extract transaction data using AIBrain (Real Gemini)
+    try:
+        intent_result = reasoning.classify_intent(transcribed_text)
+        intent = intent_result.get("intent", "WRITE_LOG")
+        print(f"DEBUG: Classified intent: {intent_result}")
+    except Exception as e:
+        print(f"ERROR: Intent classification failed: {e}")
+        intent = "WRITE_LOG"
+
+    if intent == "QUERY":
+        chat_data = await handle_chat_query(
+            db=db, query=transcribed_text, user_id=user_id
+        )
+        message = chat_data.get(
+            "response",
+            "Procesé tu consulta financiera.",
+        )
+        return {"type": "chat", "message": message}
+
+    if intent == "UNKNOWN":
+        normalized = (transcribed_text or "").strip().lower()
+        if normalized in ("gasto", "gasto.", "gasto?"):
+            help_message = "¿De qué fue el gasto y cuánto costó?"
+        elif normalized in ("ingreso", "ingreso.", "ingreso?"):
+            help_message = "¿De qué fue el ingreso y de cuánto fue?"
+        elif normalized in ("deuda", "deuda.", "deuda?"):
+            help_message = "¿A quién le debes y cuánto es la deuda?"
+        else:
+            help_message = (
+                "No estoy seguro de qué hacer con eso. "
+                "¿Quieres registrar un gasto, hacer una consulta o simplemente charlar?"
+            )
+        return {"type": "chat", "message": help_message}
+
+    if intent == "CHAT":
+        chat_message = reasoning.generate_chat_response(
+            transcribed_text, mode="CHAT"
+        )
+        return {"type": "chat", "message": chat_message}
+
     try:
         extracted_list = reasoning.extract_transaction_data(transcribed_text)
         print(f"DEBUG: Extracted data list: {extracted_list}")
+    except reasoning.IncompleteInfoError:
+        message = (
+            "Entendí que quieres registrar un movimiento, pero necesito más detalles. "
+            "¿Podrías decirme qué fue y cuánto costó?"
+        )
+        return {"type": "chat", "message": message}
     except Exception as e:
         raise ValueError(f"Data extraction failed: {str(e)}")
 
-    # Step 3: Create provisional transactions using FinanceCore
-    transactions = []
+    if not extracted_list:
+        message = (
+            "Entendí que quieres registrar algo, pero me faltan datos. "
+            "¿Podrías decirlo de nuevo con el monto y el concepto?"
+        )
+        return {"type": "chat", "message": message}
+
+    transactions: List[Transaction] = []
     for item in extracted_list:
         try:
             amount = float(item.get("amount", 0.0))
@@ -127,6 +238,13 @@ async def orchestrate_voice_transaction(
             amount = 0.0
 
         concept = item.get("concept", "Gasto sin concepto")
+        merchant = item.get("merchant")
+        if (
+            merchant
+            and concept
+            and merchant.strip().lower() == concept.strip().lower()
+        ):
+            merchant = None
 
         transaction_date = None
         date_str = item.get("date")
@@ -142,13 +260,14 @@ async def orchestrate_voice_transaction(
             amount=amount,
             concept=concept,
             transaction_type=TransactionType[item.get("type", "EXPENSE").upper()],
-            merchant=item.get("merchant"),
+            merchant=merchant,
             category=item.get("category"),
             transaction_date=transaction_date,
         )
         transactions.append(tx)
 
-    return transactions
+    narrative = _generate_narrative(transactions)
+    return {"type": "transaction", "data": transactions, "message": narrative}
 
 
 # ============================================================================

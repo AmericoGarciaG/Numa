@@ -128,6 +128,12 @@ class VoiceCommandResponse(BaseModel):
     transaction: Transaction
 
 
+class VoiceTransactionResponse(BaseModel):
+    type: str
+    data: Optional[List[Transaction]] = None
+    message: Optional[str] = None
+
+
 # Query schemas for conversational assistant
 class ExpenseQuery(BaseModel):
     """Schema for expense queries in natural language."""

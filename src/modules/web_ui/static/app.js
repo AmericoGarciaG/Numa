@@ -293,9 +293,9 @@ const app = {
             this.state.mediaRecorder.start();
             this.state.isRecording = true;
 
-            // UI Update
             this.elements.micBtn.classList.add('recording');
             this.updateStatus("Escuchando...", "Di tu gasto...");
+            this.showSystemMessage("Escuchando...");
 
         } catch (err) {
             console.error("Mic access denied:", err);
@@ -321,7 +321,8 @@ const app = {
     sendAudio: async function (audioBlob) {
         if (!this.state.token) return;
 
-        // Feedback Steps
+        this.showSystemMessage("Procesando tu audio...");
+
         setTimeout(() => this.updateSubStatus("Enviando audio..."), 100);
         setTimeout(() => this.updateSubStatus("Transcribiendo (Google V2)..."), 1000); // Fake progress for UX
         setTimeout(() => this.updateSubStatus("Analizando con Gemini AI..."), 2500);
@@ -342,10 +343,24 @@ const app = {
 
             if (response.status === 201) {
                 const data = await response.json();
-                const transactions = Array.isArray(data) ? data : [data];
-                this.showSuccess(transactions);
-                this.refreshTransactions();
-                this.refreshDailySummary();
+                const responseType = data.type || 'transaction';
+                const message = data.message || null;
+
+                if (responseType === 'transaction') {
+                    const transactions = Array.isArray(data.data) ? data.data : [];
+                    this.showSuccess(transactions, message);
+                    this.refreshTransactions();
+                    this.refreshDailySummary();
+                } else if (responseType === 'chat') {
+                    if (message) {
+                        this.showSystemMessage(message);
+                    }
+                    this.updateStatus("Listo", "Consulta respondida");
+                } else {
+                    if (message) {
+                        this.showSystemMessage(message);
+                    }
+                }
             } else {
                 const err = await response.text();
                 throw new Error(err);
@@ -359,7 +374,7 @@ const app = {
         }
     },
 
-    showSuccess: function (transactions) {
+    showSuccess: function (transactions, backendMessage) {
         const list = Array.isArray(transactions) ? transactions : [transactions];
         const count = list.length;
         const last = list[list.length - 1];
@@ -380,17 +395,23 @@ const app = {
             this.elements.cardMerchant.innerHTML = `<i class="fa-solid fa-store mr-1"></i> ${t.merchant || "Desconocido"}`;
         }
 
-        // Show Card with animation
         const card = this.elements.resultCard;
         card.classList.remove('hidden');
         // Trigger reflow
         void card.offsetWidth;
         card.classList.remove('translate-y-4', 'opacity-0');
 
-        // Reset status after a while
         setTimeout(() => {
             this.updateStatus("Presiona para hablar", "Registra otro gasto");
         }, 5000);
+
+        if (backendMessage) {
+            this.showSystemMessage(backendMessage);
+        } else if (count > 1) {
+            this.showSystemMessage(`Registré ${count} movimientos por un total de $${totalAmount.toFixed(2)}.`);
+        } else if (last) {
+            this.showSystemMessage(`Registré ${last.concept} por $${last.amount.toFixed(2)}.`);
+        }
     },
 
     refreshTransactions: async function () {

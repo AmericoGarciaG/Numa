@@ -106,9 +106,6 @@ def create_provisional_transaction(
     Returns:
         Transaction: The newly created provisional transaction
     """
-    if amount == 0:
-        raise ValueError("El monto de la transacción debe ser distinto de cero.")
-
     transaction = Transaction(
         user_id=user_id,
         amount=amount,
